@@ -86,9 +86,49 @@
     display:flex;align-items:center;padding:0 12px;gap:18px}
   .statusbar .big{font-weight:700;font-size:9.5pt}
   .pill{background:rgba(255,255,255,.18);padding:1px 8px;border-radius:9px}
+  .ribbon-tabs span[onclick]{cursor:pointer}
+  .ribbon-tabs span[onclick]:hover{background:rgba(255,255,255,.12);border-radius:4px 4px 0 0}
+  /* ===== Views ===== */
+  .view{display:none}.view.on{display:block}
+  /* ===== Home: 시세 + 채팅 ===== */
+  .hometools{background:var(--hdr-bg);border-bottom:1px solid var(--grid);
+    padding:8px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;height:42px}
+  .mtabs{display:flex;gap:3px}
+  .mtabs button{background:var(--cell-bg);color:var(--fg);border:1px solid var(--grid);
+    padding:5px 12px;font-size:9pt;font-family:inherit;cursor:pointer;border-radius:3px}
+  .mtabs button.on{background:var(--ribbon);color:#fff;border-color:var(--ribbon);font-weight:600}
+  .hometools input#watchInput{font-family:inherit;font-size:9pt;padding:5px 8px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg);width:240px}
+  .hometools select{font-family:inherit;font-size:9pt;padding:4px;border:1px solid var(--grid);
+    border-radius:3px;background:var(--cell-bg);color:var(--fg);margin-left:auto}
+  .homebody{display:flex;height:calc(100vh - 30px - 26px - 42px - 24px)}
+  .quotewrap{flex:1;overflow:auto}
+  #quoteGrid{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  #quoteGrid th,#quoteGrid td{border:1px solid var(--grid);padding:6px 10px;
+    white-space:nowrap;font-size:10pt}
+  #quoteGrid thead th{background:var(--hdr-bg);color:var(--hdr-fg);position:sticky;top:0;z-index:3}
+  #quoteGrid td.num{text-align:right}
+  #quoteGrid tr:nth-child(even) td{background:var(--band)}
+  #quoteGrid .sym b{font-size:10.5pt}
+  #quoteGrid .sym span{color:var(--muted);font-size:8.5pt}
+  .wdel{background:transparent;border:0;color:var(--muted);cursor:pointer}
+  .wdel:hover{color:var(--up)}
+  .chatpanel{width:320px;border-left:2px solid var(--grid);display:flex;flex-direction:column;
+    background:var(--band)}
+  .chathead{padding:8px 12px;background:var(--ribbon);color:#fff;font-size:9.5pt;font-weight:600}
+  .chathead .cnote{font-weight:400;font-size:8pt;color:#cfe6da}
+  .chatlog{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .msg{align-self:flex-end;max-width:78%;background:var(--ribbon);color:#fff;
+    padding:7px 11px;border-radius:12px 12px 2px 12px;font-size:9.5pt;word-break:break-word}
+  .msg .mt{display:block;font-size:7.5pt;color:rgba(255,255,255,.7);margin-top:3px;text-align:right}
+  .chatempty{color:var(--muted);font-size:9pt;text-align:center;margin:auto}
+  .chatin{display:flex;gap:6px;padding:10px;border-top:1px solid var(--grid);background:var(--cell-bg)}
+  .chatin input{flex:1;font-family:inherit;font-size:9.5pt;padding:7px 9px;
+    border:1px solid var(--grid);border-radius:4px;background:var(--cell-bg);color:var(--fg)}
   /* ===== Sheet tabs ===== */
   .sheettabs{height:0}
-  @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}}
+  @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}
+    .chatpanel{width:200px}.hometools input#watchInput{width:140px}}
 </style>
 </head>
 <body>
@@ -103,10 +143,57 @@
   </div>
 
   <div class="ribbon-tabs">
-    <span>파일</span><span class="active">홈</span><span>삽입</span>
-    <span>수식</span><span>데이터</span><span>검토</span><span>보기</span>
+    <span>파일</span>
+    <span id="tab-home" class="active" onclick="showTab('home')">홈</span>
+    <span id="tab-insert" onclick="showTab('insert')">삽입</span>
+    <span onclick="showTab('insert')">수식</span><span onclick="showTab('insert')">데이터</span>
+    <span onclick="showTab('home')">검토</span><span onclick="showTab('home')">보기</span>
   </div>
 
+  <!-- ===================== 홈: 실시간 시세 + 대화 ===================== -->
+  <div id="view-home" class="view on">
+    <div class="hometools">
+      <div class="mtabs" id="mtabs">
+        <button data-mkt="kr" class="on" onclick="setMkt('kr')">🇰🇷 국장</button>
+        <button data-mkt="us" onclick="setMkt('us')">🇺🇸 미장</button>
+        <button data-mkt="coin" onclick="setMkt('coin')">₿ 코인</button>
+        <button data-mkt="all" onclick="setMkt('all')">전체</button>
+      </div>
+      <input type="text" id="watchInput" placeholder="관심종목 추가 (삼성, 엔비디아, 비트코인…)"
+             onkeydown="if(event.key==='Enter')watchAdd()" autocomplete="off">
+      <button class="btn" onclick="watchAdd()">＋ 추가</button>
+      <select id="homeCur" onchange="renderQuotes()" title="시세 표시 통화">
+        <option value="KRW">₩ 원화</option><option value="USD">$ 달러</option>
+        <option value="EUR">€ 유로</option><option value="JPY">¥ 엔화</option>
+        <option value="BTC">₿ 사토시</option>
+      </select>
+    </div>
+    <div class="fbar">
+      <div class="namebox">fx</div>
+      <div class="fx">=</div>
+      <div class="content" id="mbrief">MARKETBRIEF(AUTO) — 실시간 시세 로딩중…</div>
+    </div>
+    <div class="homebody">
+      <div class="quotewrap">
+        <table id="quoteGrid">
+          <thead><tr><th class="rownum">#</th><th>종목</th><th>현재가</th><th>표시통화</th><th>등락률</th><th>관심</th></tr></thead>
+          <tbody id="quoteBody"></tbody>
+        </table>
+      </div>
+      <div class="chatpanel">
+        <div class="chathead">💬 실시간 채팅 <span class="cnote">· 이 기기에 저장되는 메모/대화</span></div>
+        <div class="chatlog" id="chatlog"></div>
+        <div class="chatin">
+          <input type="text" id="chatmsg" placeholder="메시지 입력 후 Enter"
+                 onkeydown="if(event.key==='Enter')chatSend()" autocomplete="off">
+          <button class="btn" onclick="chatSend()">전송</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 삽입: 포트폴리오 구성 ===================== -->
+  <div id="view-insert" class="view">
   <div class="ribbon">
     <div class="grp">
       <div class="row">
@@ -169,6 +256,7 @@
     <span>총 손익 <b id="st-pl">-</b></span>
     <span style="margin-left:auto" id="st-rate">USD/KRW · BTC 로딩중…</span>
   </div>
+  </div><!-- /view-insert -->
 
 <script>
 "use strict";
@@ -201,7 +289,8 @@ async function yQuote(symbol){
   const j=await jget(u);
   const m=j?.chart?.result?.[0]?.meta;
   if(!m||m.regularMarketPrice==null) throw new Error("no price "+symbol);
-  return {price:m.regularMarketPrice, cur:m.currency||"USD"};
+  return {price:m.regularMarketPrice, cur:m.currency||"USD",
+          prev:m.chartPreviousClose||m.previousClose||null};
 }
 /* ============ 종목명 → 코드 (별칭 + Yahoo 검색) ============ */
 const ALIAS = [
@@ -623,13 +712,139 @@ function statTotals(cost,val,base,fx){
 }
 
 /* ============ 기타 ============ */
-function toggleDark(){ document.body.classList.toggle("dark"); render(); }
+function toggleDark(){ document.body.classList.toggle("dark"); render(); renderQuotes(); }
 setInterval(()=>{ document.getElementById("clock").textContent=
   new Date().toLocaleTimeString("ko-KR"); },1000);
 
+/* ============ 탭 전환 ============ */
+let curTab="home";
+function showTab(t){
+  curTab=t;
+  document.getElementById("view-home").classList.toggle("on",t==="home");
+  document.getElementById("view-insert").classList.toggle("on",t==="insert");
+  document.getElementById("tab-home").classList.toggle("active",t==="home");
+  document.getElementById("tab-insert").classList.toggle("active",t==="insert");
+  if(t==="home") homeRefresh();
+}
+
+/* ============ 홈: 실시간 시세 ============ */
+const MKT={
+  kr:[["005930.KS","삼성전자"],["000660.KS","SK하이닉스"],["035720.KS","카카오"],
+      ["035420.KS","NAVER"],["005380.KS","현대차"],["373220.KS","LG에너지솔루션"],
+      ["000270.KS","기아"],["207940.KS","삼성바이오로직스"]],
+  us:[["AAPL","애플"],["NVDA","엔비디아"],["TSLA","테슬라"],["MSFT","마이크로소프트"],
+      ["GOOGL","알파벳"],["AMZN","아마존"],["META","메타"],["AMD","AMD"]],
+  coin:[["BTC-USD","비트코인"],["ETH-USD","이더리움"],["XRP-USD","리플"],
+        ["SOL-USD","솔라나"],["DOGE-USD","도지코인"],["ADA-USD","에이다"]]
+};
+const WLS="pf_watch_v1";
+let watch=JSON.parse(localStorage.getItem(WLS)||"[]"); // [[sym,name],...] 사용자 추가
+let curMkt="kr";
+function mktList(){
+  if(curMkt==="all") return [...MKT.kr,...MKT.us,...MKT.coin,...watch];
+  return [...(MKT[curMkt]||[]),...watch.filter(w=>{
+    const k=w[0];
+    if(curMkt==="kr") return k.endsWith(".KS")||k.endsWith(".KQ");
+    if(curMkt==="coin") return k.endsWith("-USD");
+    if(curMkt==="us") return !k.includes(".")&&!k.endsWith("-USD");
+    return true;
+  })];
+}
+function setMkt(m){
+  curMkt=m;
+  [...document.querySelectorAll("#mtabs button")].forEach(b=>
+    b.classList.toggle("on",b.dataset.mkt===m));
+  homeRefresh();
+}
+async function watchAdd(){
+  const raw=document.getElementById("watchInput").value.trim();
+  if(!raw) return;
+  const s=await resolveSymbol(raw);
+  if(!s){ alert(`"${raw}" 종목을 찾지 못했습니다.`); return; }
+  if(!watch.some(w=>w[0]===s) &&
+     !Object.values(MKT).flat().some(x=>x[0]===s)){
+    const al=aliasMatch(raw)[0];
+    watch.push([s, al? al.name : (raw.length<12?raw:s)]);
+    localStorage.setItem(WLS,JSON.stringify(watch));
+  }
+  document.getElementById("watchInput").value="";
+  homeRefresh();
+}
+function watchDel(s){
+  watch=watch.filter(w=>w[0]!==s);
+  localStorage.setItem(WLS,JSON.stringify(watch));
+  renderQuotes();
+}
+function natMoney(v,cur){
+  if(v==null) return "-";
+  if(cur==="KRW") return "₩"+fmt(v,0);
+  if(cur==="USD") return "$"+fmt(v,2);
+  if(cur==="JPY") return "¥"+fmt(v,0);
+  if(cur==="EUR") return "€"+fmt(v,2);
+  return fmt(v,2)+" "+cur;
+}
+async function homeRefresh(){
+  if(curTab!=="home") return;
+  const list=mktList();
+  document.getElementById("mbrief").textContent=
+    `MARKETBRIEF(${curMkt.toUpperCase()}) — ${list.length}종목 · ${new Date().toLocaleTimeString("ko-KR")}`;
+  renderQuotes(); // 우선 캐시로 즉시 렌더
+  await Promise.all(list.map(async([s])=>{
+    try{ quotes[s]=await yQuote(s); }catch(e){}
+  }));
+  renderQuotes();
+}
+function renderQuotes(){
+  const base=document.getElementById("homeCur").value;
+  const tb=document.getElementById("quoteBody");
+  const list=mktList();
+  if(!list.length){ tb.innerHTML=`<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--muted)">관심종목을 추가하세요</td></tr>`; return; }
+  tb.innerHTML=list.map(([s,nm],i)=>{
+    const q=quotes[s];
+    const isW=watch.some(w=>w[0]===s);
+    if(!q) return `<tr><td class="rownum">${i+1}</td><td class="sym"><b>${nm}</b> <span>${s}</span></td>
+      <td class="num" style="color:var(--muted)">로딩…</td><td class="num">-</td><td class="num">-</td>
+      <td style="text-align:center">${isW?`<button class="wdel" onclick="watchDel('${s}')">✕</button>`:''}</td></tr>`;
+    const nowKRW=toKRW(q.price,q.cur,fxNow);
+    const disp=krwTo(nowKRW,base,fxNow);
+    const dispS = base==="BTC"? (disp!=null?fmt(disp*1e8,0)+" sat":"-")
+                : (disp!=null?natMoney(disp,base):"-");
+    const ch = q.prev? (q.price/q.prev-1)*100 : null;
+    const cc = ch==null?"":(ch>=0?"up":"down");
+    const cs = ch==null?"-":`${ch>=0?"▲":"▼"} ${fmt(Math.abs(ch),2)}%`;
+    return `<tr><td class="rownum">${i+1}</td>
+      <td class="sym"><b>${nm}</b> <span>${s} · ${q.cur}</span></td>
+      <td class="num">${natMoney(q.price,q.cur)}</td>
+      <td class="num">${dispS}</td>
+      <td class="num ${cc}">${cs}</td>
+      <td style="text-align:center">${isW?`<button class="wdel" onclick="watchDel('${s}')">✕</button>`:'<span style="color:var(--muted)">★</span>'}</td></tr>`;
+  }).join("");
+}
+
+/* ============ 홈: 채팅(로컬) ============ */
+const CHS="pf_chat_v1";
+let chat=JSON.parse(localStorage.getItem(CHS)||"[]");
+function chatSend(){
+  const el=document.getElementById("chatmsg");
+  const t=el.value.trim(); if(!t) return;
+  chat.push({t:Date.now(),text:t});
+  localStorage.setItem(CHS,JSON.stringify(chat));
+  el.value=""; renderChat();
+}
+function renderChat(){
+  const log=document.getElementById("chatlog");
+  if(!chat.length){ log.innerHTML=`<div class="chatempty">메시지가 없습니다.<br>매매 아이디어·메모를 적어보세요.</div>`; return; }
+  log.innerHTML=chat.map(m=>`<div class="msg">${m.text.replace(/</g,"&lt;")}
+    <span class="mt">${new Date(m.t).toLocaleString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}</span></div>`).join("");
+  log.scrollTop=log.scrollHeight;
+}
+
 render();
 refreshAll();
-setInterval(refreshAll, 60000); // 1분마다 자동 갱신
+renderChat();
+homeRefresh();
+setInterval(refreshAll, 60000);            // 포트폴리오 1분
+setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 30000); // 시세 30초
 </script>
 </body>
 </html>
