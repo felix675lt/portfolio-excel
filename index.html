@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portfolio.xlsx - 자산현황</title>
+<style>
+  :root{
+    --grid:#d4d4d4; --hdr-bg:#f3f3f3; --hdr-fg:#444; --sel:#107c41;
+    --ribbon:#217346; --ribbon-fg:#fff; --cell-bg:#fff; --fg:#212121;
+    --up:#d60000; --down:#0a44d6; --muted:#888; --band:#fafafa;
+  }
+  body.dark{
+    --grid:#3a3a3a; --hdr-bg:#2a2a2a; --hdr-fg:#bbb; --cell-bg:#1e1e1e;
+    --fg:#e6e6e6; --band:#242424; --up:#ff6b6b; --down:#6b9bff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"맑은 고딕","Malgun Gothic","Segoe UI",sans-serif;font-size:11pt;
+    background:var(--cell-bg);color:var(--fg);overflow:hidden}
+  /* ===== Title bar ===== */
+  .titlebar{background:var(--ribbon);color:var(--ribbon-fg);height:30px;display:flex;
+    align-items:center;padding:0 12px;font-size:9pt;gap:14px}
+  .titlebar .name{font-weight:600}
+  .titlebar .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .titlebar button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:3px;
+    padding:3px 9px;font-size:8.5pt;cursor:pointer}
+  .titlebar button:hover{background:rgba(255,255,255,.3)}
+  /* ===== Ribbon ===== */
+  .ribbon-tabs{background:var(--ribbon);display:flex;gap:2px;padding:0 8px;height:26px;font-size:9pt}
+  .ribbon-tabs span{color:#cfe6da;padding:4px 12px;cursor:default}
+  .ribbon-tabs span.active{background:var(--cell-bg);color:var(--ribbon);border-radius:4px 4px 0 0;font-weight:600}
+  .ribbon{background:var(--hdr-bg);border-bottom:1px solid var(--grid);padding:8px 10px;
+    display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+  .grp{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .grp .lbl{font-size:7.5pt;color:var(--muted);order:2}
+  .grp .row{display:flex;gap:6px;align-items:center;order:1}
+  .ribbon input,.ribbon select{font-family:inherit;font-size:9pt;padding:3px 5px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .ribbon input[type=text]{width:84px}.ribbon input[type=number]{width:74px}
+  .btn{background:var(--ribbon);color:#fff;border:0;border-radius:3px;padding:5px 12px;
+    font-size:9pt;cursor:pointer;font-family:inherit}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.sec{background:#eaeaea;color:#333}
+  /* ===== Formula bar ===== */
+  .fbar{display:flex;align-items:center;height:24px;border-bottom:1px solid var(--grid);
+    background:var(--cell-bg);font-size:9pt}
+  .fbar .namebox{width:120px;border-right:1px solid var(--grid);padding:0 8px;color:var(--muted);
+    height:100%;display:flex;align-items:center}
+  .fbar .fx{padding:0 8px;color:var(--muted);font-style:italic}
+  .fbar .content{padding:0 10px;color:var(--fg)}
+  /* ===== Grid ===== */
+  .sheetwrap{overflow:auto;height:calc(100vh - 30px - 26px - 84px - 24px - 22px)}
+  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+  th,td{border:1px solid var(--grid);padding:4px 8px;white-space:nowrap;font-size:10pt}
+  thead th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;position:sticky;top:0;z-index:3;
+    text-align:center}
+  .colhdr th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:400;font-size:9pt;
+    text-align:center;height:18px;position:sticky;top:0;z-index:4}
+  .rownum{background:var(--hdr-bg);color:var(--hdr-fg);text-align:center;font-size:9pt;
+    width:34px;position:sticky;left:0;z-index:2;font-weight:400}
+  td.num{text-align:right}
+  tr.lot:nth-child(even) td{background:var(--band)}
+  tr.avg td{background:#fff4d6;font-weight:700}
+  body.dark tr.avg td{background:#3a3320}
+  tr.tickerhdr td{background:var(--ribbon);color:#fff;font-weight:700;font-size:10pt}
+  .up{color:var(--up);font-weight:600}.down{color:var(--down);font-weight:600}
+  .delbtn{background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:11pt}
+  .delbtn:hover{color:var(--up)}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  /* ===== Status bar ===== */
+  .statusbar{height:22px;background:var(--ribbon);color:#fff;font-size:8.5pt;
+    display:flex;align-items:center;padding:0 12px;gap:18px}
+  .statusbar .big{font-weight:700;font-size:9.5pt}
+  .pill{background:rgba(255,255,255,.18);padding:1px 8px;border-radius:9px}
+  /* ===== Sheet tabs ===== */
+  .sheettabs{height:0}
+  @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}}
+</style>
+</head>
+<body>
+  <div class="titlebar">
+    <span class="name">📊 Portfolio.xlsx</span>
+    <span style="color:#cfe6da">자동 저장 ●</span>
+    <div class="right">
+      <span id="clock" style="color:#cfe6da"></span>
+      <button onclick="refreshAll()" id="refbtn">🔄 새로고침</button>
+      <button onclick="toggleDark()">🌙 보기</button>
+    </div>
+  </div>
+
+  <div class="ribbon-tabs">
+    <span>파일</span><span class="active">홈</span><span>삽입</span>
+    <span>수식</span><span>데이터</span><span>검토</span><span>보기</span>
+  </div>
+
+  <div class="ribbon">
+    <div class="grp">
+      <div class="row">
+        <input type="text" id="sym" placeholder="종목코드" title="예: 005930.KS(삼성전자), AAPL, TSLA, 035720.KS">
+        <input type="number" id="qty" placeholder="수량" step="any">
+        <input type="number" id="price" placeholder="매수가" step="any">
+        <select id="curIn"><option value="auto">native</option><option>KRW</option><option>USD</option></select>
+        <input type="date" id="bdate" style="width:120px">
+        <button class="btn" onclick="addLot()">＋ 매수 추가</button>
+      </div>
+      <div class="lbl">새 매수 회차 입력 (한 종목을 여러 번 사면 A1·A2·A3…로 누적)</div>
+    </div>
+    <div class="grp">
+      <div class="row">
+        <select id="baseCur" onchange="render()">
+          <option value="KRW">₩ 원화 (KRW)</option>
+          <option value="USD">$ 달러 (USD)</option>
+          <option value="EUR">€ 유로 (EUR)</option>
+          <option value="JPY">¥ 엔화 (JPY)</option>
+          <option value="BTC">₿ 비트코인 (BTC/sat)</option>
+        </select>
+      </div>
+      <div class="lbl">총자산 표시 통화</div>
+    </div>
+    <div class="grp">
+      <div class="row">
+        <button class="btn sec" onclick="loadSample()">샘플 불러오기</button>
+        <button class="btn sec" onclick="clearAll()">전체 삭제</button>
+      </div>
+      <div class="lbl">데이터</div>
+    </div>
+  </div>
+
+  <div class="fbar">
+    <div class="namebox" id="namebox">A1</div>
+    <div class="fx">fx</div>
+    <div class="content" id="fxcontent">시세 자동 연동 — Yahoo Finance · 환율 · 비트코인 실시간</div>
+  </div>
+
+  <div class="sheetwrap">
+    <table id="grid">
+      <tr class="colhdr" id="colhdr"></tr>
+      <thead><tr id="thead"></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="statusbar">
+    <span class="pill" id="st-count">0 종목</span>
+    <span>총 매수금액 <b id="st-cost">-</b></span>
+    <span>평가금액 <b class="big" id="st-val">-</b></span>
+    <span>총 손익 <b id="st-pl">-</b></span>
+    <span style="margin-left:auto" id="st-rate">USD/KRW · BTC 로딩중…</span>
+  </div>
+
+<script>
+"use strict";
+/* ============ 상태 ============ */
+const LS="pf_lots_v1";
+let lots = JSON.parse(localStorage.getItem(LS)||"[]");
+let quotes = {};            // symbol -> {price, cur}
+let fxNow = {USDKRW:null,EURKRW:null,JPYKRW:null,BTCUSD:null};
+const sym$ = s=>s.trim().toUpperCase();
+
+/* ============ 프록시 fetch (CORS 우회) ============ */
+const PROXIES = [
+  u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
+  u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
+  u=>u
+];
+async function jget(url){
+  for(const p of PROXIES){
+    try{
+      const r = await fetch(p(url),{cache:"no-store"});
+      if(!r.ok) continue;
+      return await r.json();
+    }catch(e){}
+  }
+  throw new Error("fetch fail "+url);
+}
+/* Yahoo chart: 현재가 + 통화 */
+async function yQuote(symbol){
+  const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`;
+  const j=await jget(u);
+  const m=j?.chart?.result?.[0]?.meta;
+  if(!m||m.regularMarketPrice==null) throw new Error("no price "+symbol);
+  return {price:m.regularMarketPrice, cur:m.currency||"USD"};
+}
+/* Yahoo 특정 날짜 종가(±5일 윈도우에서 근접값) */
+async function yHist(symbol, dateStr){
+  if(!dateStr) return null;
+  const d=new Date(dateStr+"T00:00:00Z");
+  const p1=Math.floor(d.getTime()/1000)-6*86400;
+  const p2=Math.floor(d.getTime()/1000)+3*86400;
+  const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${p1}&period2=${p2}&interval=1d`;
+  try{
+    const j=await jget(u);
+    const r=j?.chart?.result?.[0];
+    const ts=r?.timestamp||[], cl=r?.indicators?.quote?.[0]?.close||[];
+    let best=null,bd=1e18, tgt=d.getTime()/1000;
+    for(let i=0;i<ts.length;i++){
+      if(cl[i]==null) continue;
+      const diff=Math.abs(ts[i]-tgt);
+      if(diff<bd){bd=diff;best=cl[i];}
+    }
+    return best;
+  }catch(e){return null;}
+}
+
+/* ============ 시세/환율 새로고침 ============ */
+async function fetchRates(){
+  const map={USDKRW:"KRW=X",EURKRW:"EURKRW=X",JPYKRW:"JPYKRW=X",BTCUSD:"BTC-USD"};
+  await Promise.all(Object.entries(map).map(async([k,s])=>{
+    try{ fxNow[k]=(await yQuote(s)).price; }catch(e){}
+  }));
+  const st=document.getElementById("st-rate");
+  if(fxNow.USDKRW) st.textContent =
+    `USD/KRW ${fmt(fxNow.USDKRW,2)} · JPY/KRW ${fmt(fxNow.JPYKRW,2)} · BTC $${fmt(fxNow.BTCUSD,0)}`;
+}
+async function refreshAll(){
+  const b=document.getElementById("refbtn"); b.textContent="⏳ 갱신중…"; b.disabled=true;
+  try{
+    await fetchRates();
+    const syms=[...new Set(lots.map(l=>l.sym))];
+    await Promise.all(syms.map(async s=>{
+      try{ quotes[s]=await yQuote(s); }catch(e){ quotes[s]=quotes[s]||{price:null,cur:"?"}; }
+    }));
+  }finally{
+    b.textContent="🔄 새로고침"; b.disabled=false; render();
+  }
+}
+
+/* ============ 통화 변환 ============ */
+// native(가격, 통화) -> KRW
+function toKRW(v,cur,fx){
+  if(v==null) return null;
+  if(cur==="KRW") return v;
+  if(cur==="USD") return fx.USDKRW? v*fx.USDKRW : null;
+  if(cur==="EUR") return fx.EURKRW? v*fx.EURKRW : null;
+  if(cur==="JPY") return fx.JPYKRW? v*fx.JPYKRW : null;
+  return fx.USDKRW? v*fx.USDKRW : null; // 기타는 USD 취급
+}
+function krwTo(vKRW,target,fx){
+  if(vKRW==null) return null;
+  if(target==="KRW") return vKRW;
+  if(target==="USD") return fx.USDKRW? vKRW/fx.USDKRW : null;
+  if(target==="EUR") return fx.EURKRW? vKRW/fx.EURKRW : null;
+  if(target==="JPY") return fx.JPYKRW? vKRW/fx.JPYKRW : null;
+  if(target==="BTC"){ const usd=fx.USDKRW?vKRW/fx.USDKRW:null; return (usd!=null&&fx.BTCUSD)? usd/fx.BTCUSD:null; }
+  return null;
+}
+// 사토시(1 BTC = 1e8 sat)
+function krwToSat(vKRW,fx){ const b=krwTo(vKRW,"BTC",fx); return b==null?null:b*1e8; }
+
+/* ============ 포맷 ============ */
+function fmt(n,dp){
+  if(n==null||isNaN(n)) return "-";
+  return Number(n).toLocaleString("ko-KR",{maximumFractionDigits:dp,minimumFractionDigits:dp});
+}
+function money(vKRW,cur,fx){
+  const v=krwTo(vKRW,cur,fx);
+  if(v==null) return "-";
+  if(cur==="KRW") return "₩"+fmt(v,0);
+  if(cur==="USD") return "$"+fmt(v,2);
+  if(cur==="EUR") return "€"+fmt(v,2);
+  if(cur==="JPY") return "¥"+fmt(v,0);
+  if(cur==="BTC") return fmt(v*1e8,0)+" sat";
+}
+function pctCell(p){
+  if(p==null||isNaN(p)) return '<td class="num">-</td>';
+  const c=p>=0?"up":"down", s=p>=0?"▲":"▼";
+  return `<td class="num ${c}">${s} ${fmt(Math.abs(p),2)}%</td>`;
+}
+
+/* ============ 매수 추가 ============ */
+async function addLot(){
+  const sym=sym$(document.getElementById("sym").value);
+  const qty=parseFloat(document.getElementById("qty").value);
+  const price=parseFloat(document.getElementById("price").value);
+  const curIn=document.getElementById("curIn").value;
+  const bdate=document.getElementById("bdate").value;
+  if(!sym||!qty||!price){ alert("종목코드 / 수량 / 매수가를 입력하세요.\n예) 삼성전자=005930.KS, 카카오=035720.KS, 애플=AAPL"); return; }
+
+  // 종목 통화 파악
+  let q;
+  try{ q=await yQuote(sym); }catch(e){ if(!confirm("시세를 못 가져왔습니다. 종목코드가 맞나요? 그래도 추가할까요?")) return; q={price:null,cur:sym.endsWith(".KS")||sym.endsWith(".KQ")?"KRW":"USD"}; }
+  quotes[sym]=q;
+  const native = curIn==="auto"? q.cur : curIn;
+
+  // 매수 시점 환율 스냅샷 (정확한 통화별 수익률용)
+  let bfx={...fxNow};
+  if(bdate){
+    const [uk,jk,ek,bu]=await Promise.all([
+      yHist("KRW=X",bdate), yHist("JPYKRW=X",bdate),
+      yHist("EURKRW=X",bdate), yHist("BTC-USD",bdate)
+    ]);
+    bfx={USDKRW:uk||fxNow.USDKRW, JPYKRW:jk||fxNow.JPYKRW,
+         EURKRW:ek||fxNow.EURKRW, BTCUSD:bu||fxNow.BTCUSD};
+  }
+  lots.push({id:Date.now()+Math.random(), sym, qty, price, native, date:bdate||"", bfx});
+  save();
+  document.getElementById("sym").value=document.getElementById("qty").value=
+  document.getElementById("price").value=""; document.getElementById("bdate").value="";
+  refreshAll();
+}
+function delLot(id){ lots=lots.filter(l=>l.id!=id); save(); render(); }
+function save(){ localStorage.setItem(LS,JSON.stringify(lots)); }
+function clearAll(){ if(confirm("모든 포트폴리오를 삭제할까요?")){ lots=[]; save(); render(); } }
+function loadSample(){
+  lots=[
+   {id:1,sym:"005930.KS",qty:10,price:71000,native:"KRW",date:"2024-01-05",bfx:{USDKRW:1310,JPYKRW:9.0,EURKRW:1440,BTCUSD:44000}},
+   {id:2,sym:"005930.KS",qty:15,price:79000,native:"KRW",date:"2024-07-10",bfx:{USDKRW:1380,JPYKRW:8.7,EURKRW:1490,BTCUSD:58000}},
+   {id:3,sym:"AAPL",qty:5,price:189,native:"USD",date:"2024-03-01",bfx:{USDKRW:1330,JPYKRW:8.9,EURKRW:1440,BTCUSD:62000}},
+   {id:4,sym:"AAPL",qty:4,price:225,native:"USD",date:"2024-10-15",bfx:{USDKRW:1360,JPYKRW:9.0,EURKRW:1480,BTCUSD:67000}},
+   {id:5,sym:"TSLA",qty:3,price:240,native:"USD",date:"2024-05-20",bfx:{USDKRW:1370,JPYKRW:8.8,EURKRW:1480,BTCUSD:69000}}
+  ];
+  save(); refreshAll();
+}
+
+/* ============ 렌더 ============ */
+const COLS=["","종목 / 회차","수량","매수가(원)","매수가($)","현재가(원)","현재가($)",
+  "수익률 ₩","수익률 $","수익률 ₿(sat)","평가금액","손익","삭제"];
+function colLetters(n){ // A,B,C...
+  let s=[]; for(let i=0;i<n;i++) s.push(String.fromCharCode(65+i)); return s;
+}
+function render(){
+  const base=document.getElementById("baseCur").value;
+  const fx=fxNow;
+  // 컬럼 헤더(엑셀식 A,B,C)
+  document.getElementById("colhdr").innerHTML =
+    '<th class="rownum"></th>'+colLetters(COLS.length-1).map(c=>`<th>${c}</th>`).join("");
+  document.getElementById("thead").innerHTML =
+    '<th class="rownum">#</th>'+COLS.slice(1).map(c=>`<th>${c}</th>`).join("");
+
+  const tb=document.getElementById("tbody"); tb.innerHTML="";
+  if(!lots.length){
+    tb.innerHTML=`<tr><td colspan="${COLS.length}" class="empty">
+      상단 리본에서 종목을 추가하세요. (예: 삼성전자 <b>005930.KS</b>, 카카오 <b>035720.KS</b>, 애플 <b>AAPL</b>)<br>
+      또는 <b>샘플 불러오기</b>로 미리보기</td></tr>`;
+    statTotals(0,0,base,fx); return;
+  }
+
+  // 종목별 그룹
+  const groups={};
+  lots.forEach(l=>{ (groups[l.sym]=groups[l.sym]||[]).push(l); });
+  let rn=1, totCostKRW=0, totValKRW=0;
+
+  for(const sym of Object.keys(groups)){
+    const g=groups[sym], q=quotes[sym]||{price:null,cur:"?"};
+    const curPxNativeKRW = q.price!=null? toKRW(q.price,q.cur,fx) : null;
+    // 종목 헤더
+    tb.insertAdjacentHTML("beforeend",
+      `<tr class="tickerhdr"><td class="rownum">${rn++}</td>
+        <td colspan="${COLS.length-2}">▣ ${sym} &nbsp; 현재가 ${q.price!=null?money(curPxNativeKRW,base,fx):"로딩…"}
+        ${q.cur&&q.cur!=="?"?`(${q.cur})`:""}</td><td></td></tr>`);
+
+    let sumQty=0,sumCostKRW=0,sumValKRW=0;
+    g.forEach((l,i)=>{
+      const bfx=l.bfx||fx;
+      const buyKRW = toKRW(l.price,l.native,bfx);
+      const buyUSD = bfx.USDKRW? buyKRW/bfx.USDKRW : null;
+      const buySat = (buyUSD!=null&&bfx.BTCUSD)? buyUSD/bfx.BTCUSD*1e8 : null;
+      const nowKRW = curPxNativeKRW;
+      const nowUSD = (nowKRW!=null&&fx.USDKRW)? nowKRW/fx.USDKRW : null;
+      const nowSat = (nowUSD!=null&&fx.BTCUSD)? nowUSD/fx.BTCUSD*1e8 : null;
+      const rK = (buyKRW&&nowKRW)? (nowKRW/buyKRW-1)*100 : null;
+      const rU = (buyUSD&&nowUSD)? (nowUSD/buyUSD-1)*100 : null;
+      const rS = (buySat&&nowSat)? (nowSat/buySat-1)*100 : null;
+      const valKRW = nowKRW!=null? nowKRW*l.qty : null;
+      const costKRW = buyKRW!=null? buyKRW*l.qty : null;
+      const plKRW = (valKRW!=null&&costKRW!=null)? valKRW-costKRW : null;
+      sumQty+=l.qty; if(costKRW)sumCostKRW+=costKRW; if(valKRW)sumValKRW+=valKRW;
+
+      const lab=String.fromCharCode(65+Object.keys(groups).indexOf(sym))+(i+1);
+      tb.insertAdjacentHTML("beforeend",`<tr class="lot">
+        <td class="rownum">${rn++}</td>
+        <td><b>${lab}</b> &nbsp;<span style="color:var(--muted)">${l.date||"-"}</span></td>
+        <td class="num">${fmt(l.qty,l.qty%1?4:0)}</td>
+        <td class="num">${money(buyKRW,'KRW',fx)}</td>
+        <td class="num">${buyUSD!=null?'$'+fmt(buyUSD,2):'-'}</td>
+        <td class="num">${money(nowKRW,'KRW',fx)}</td>
+        <td class="num">${nowUSD!=null?'$'+fmt(nowUSD,2):'-'}</td>
+        ${pctCell(rK)}${pctCell(rU)}${pctCell(rS)}
+        <td class="num">${money(valKRW,base,fx)}</td>
+        <td class="num ${plKRW>=0?'up':'down'}">${plKRW!=null?(plKRW>=0?'+':'')+money(plKRW,base,fx):'-'}</td>
+        <td style="text-align:center"><button class="delbtn" onclick="delLot(${l.id})">✕</button></td>
+      </tr>`);
+    });
+
+    // 평균단가 행
+    const avgKRW = sumQty? sumCostKRW/sumQty : null;
+    const avgUSD = (avgKRW!=null&&fx.USDKRW)? avgKRW/fx.USDKRW : null;
+    const avgR = (avgKRW&&sumValKRW)? (sumValKRW/sumCostKRW-1)*100 : null;
+    const avgPL = sumValKRW-sumCostKRW;
+    tb.insertAdjacentHTML("beforeend",`<tr class="avg">
+      <td class="rownum">${rn++}</td>
+      <td>∑ ${sym} 평균단가</td>
+      <td class="num">${fmt(sumQty,sumQty%1?4:0)}</td>
+      <td class="num">${money(avgKRW,'KRW',fx)}</td>
+      <td class="num">${avgUSD!=null?'$'+fmt(avgUSD,2):'-'}</td>
+      <td class="num">${money(curPxNativeKRW,'KRW',fx)}</td>
+      <td class="num">${(curPxNativeKRW!=null&&fx.USDKRW)?'$'+fmt(curPxNativeKRW/fx.USDKRW,2):'-'}</td>
+      ${pctCell(avgR)}<td class="num">-</td><td class="num">-</td>
+      <td class="num">${money(sumValKRW,base,fx)}</td>
+      <td class="num ${avgPL>=0?'up':'down'}">${(avgPL>=0?'+':'')+money(avgPL,base,fx)}</td>
+      <td></td></tr>`);
+
+    totCostKRW+=sumCostKRW; totValKRW+=sumValKRW;
+  }
+  statTotals(totCostKRW,totValKRW,base,fx);
+}
+function statTotals(cost,val,base,fx){
+  document.getElementById("st-count").textContent =
+    `${new Set(lots.map(l=>l.sym)).size} 종목 · ${lots.length} 매수`;
+  document.getElementById("st-cost").textContent = cost? money(cost,base,fx):"-";
+  document.getElementById("st-val").textContent  = val? money(val,base,fx):"-";
+  const pl=val-cost, r=cost? pl/cost*100:0;
+  const el=document.getElementById("st-pl");
+  el.textContent = cost? `${pl>=0?'+':''}${money(pl,base,fx)} (${pl>=0?'+':''}${fmt(r,2)}%)`:"-";
+  el.style.color = pl>=0? "#ffd2d2":"#bcd0ff";
+}
+
+/* ============ 기타 ============ */
+function toggleDark(){ document.body.classList.toggle("dark"); render(); }
+setInterval(()=>{ document.getElementById("clock").textContent=
+  new Date().toLocaleTimeString("ko-KR"); },1000);
+
+render();
+refreshAll();
+setInterval(refreshAll, 60000); // 1분마다 자동 갱신
+</script>
+</body>
+</html>
