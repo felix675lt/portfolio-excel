@@ -356,7 +356,18 @@ async function yQuote(symbol){
   const m=j?.chart?.result?.[0]?.meta;
   if(!m||m.regularMarketPrice==null) throw new Error("no price "+symbol);
   return {price:m.regularMarketPrice, cur:m.currency||"USD",
-          prev:m.chartPreviousClose||m.previousClose||null};
+          prev:m.chartPreviousClose||m.previousClose||null,
+          name:m.shortName||m.longName||null};
+}
+/* 코드 → 표시용 종목명 (별칭/시장표/시세응답 순) */
+let _nameMap=null;
+function symName(sym){
+  if(!_nameMap){
+    _nameMap={};
+    try{ for(const [s,...nm] of ALIAS) if(!_nameMap[s]) _nameMap[s]=nm[0]; }catch(e){}
+    try{ for(const k in MKT) MKT[k].forEach(([s,n])=>{ if(!_nameMap[s]) _nameMap[s]=n; }); }catch(e){}
+  }
+  return _nameMap[sym] || (quotes[sym]&&quotes[sym].name) || sym;
 }
 /* ============ 종목명 → 코드 (별칭 + Yahoo 검색) ============ */
 const ALIAS = [
@@ -712,7 +723,7 @@ function render(){
     // 종목 헤더
     tb.insertAdjacentHTML("beforeend",
       `<tr class="tickerhdr"><td class="rownum">${rn++}</td>
-        <td colspan="${COLS.length-2}">▣ ${sym} &nbsp; 현재가 ${q.price!=null?money(curPxNativeKRW,base,fx):"로딩…"}
+        <td colspan="${COLS.length-2}">▣ ${symName(sym)} <span style="color:rgba(255,255,255,.65);font-weight:400">${sym}</span> &nbsp; 현재가 ${q.price!=null?money(curPxNativeKRW,base,fx):"로딩…"}
         ${q.cur&&q.cur!=="?"?`(${q.cur})`:""}</td><td></td></tr>`);
 
     let sumQty=0,sumCostKRW=0,sumValKRW=0,sumCostUSD=0,sumCostSat=0,qtyUSD=0,qtySat=0;
@@ -764,7 +775,7 @@ function render(){
     const avgPL = sumValKRW-sumCostKRW;
     tb.insertAdjacentHTML("beforeend",`<tr class="avg" title="회차별 매수가의 수량가중평균">
       <td class="rownum">${rn++}</td>
-      <td>∑ ${sym} 평균단가</td>
+      <td>∑ ${symName(sym)} 평균단가</td>
       <td class="num">${fmt(sumQty,sumQty%1?4:0)}</td>
       <td class="num">${money(avgKRW,'KRW',fx)}</td>
       <td class="num">${avgUSD!=null?'$'+fmt(avgUSD,2):'-'}</td>
