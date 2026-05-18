@@ -36,7 +36,20 @@
   .grp .row{display:flex;gap:6px;align-items:center;order:1}
   .ribbon input,.ribbon select{font-family:inherit;font-size:9pt;padding:3px 5px;
     border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
-  .ribbon input[type=text]{width:84px}.ribbon input[type=number]{width:74px}
+  .ribbon input[type=text]{width:200px}.ribbon input[type=number]{width:74px}
+  .acwrap{position:relative}
+  .acbox{position:absolute;top:100%;left:0;z-index:50;width:300px;max-height:280px;
+    overflow:auto;background:var(--cell-bg);border:1px solid var(--grid);
+    border-radius:0 0 4px 4px;box-shadow:0 6px 18px rgba(0,0,0,.18);display:none}
+  .acbox.on{display:block}
+  .acitem{padding:6px 10px;cursor:pointer;font-size:9pt;display:flex;
+    justify-content:space-between;gap:10px;border-bottom:1px solid var(--band)}
+  .acitem:hover,.acitem.sel{background:var(--ribbon);color:#fff}
+  .acitem .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acitem .sy{color:var(--muted);font-family:monospace;flex-shrink:0}
+  .acitem.sel .sy,.acitem:hover .sy{color:#cfe6da}
+  .acitem .ex{font-size:7.5pt;color:var(--muted)}
+  .acmsg{padding:8px 10px;font-size:8.5pt;color:var(--muted)}
   .btn{background:var(--ribbon);color:#fff;border:0;border-radius:3px;padding:5px 12px;
     font-size:9pt;cursor:pointer;font-family:inherit}
   .btn:hover{filter:brightness(1.1)}
@@ -96,7 +109,12 @@
   <div class="ribbon">
     <div class="grp">
       <div class="row">
-        <input type="text" id="sym" placeholder="종목코드" title="예: 005930.KS(삼성전자), AAPL, TSLA, 035720.KS">
+        <div class="acwrap">
+          <input type="text" id="sym" autocomplete="off" placeholder="종목명·코드 (삼성, 엔비디아, 비트코인…)"
+                 oninput="acSearch()" onkeydown="acKey(event)" onblur="acBlur()"
+                 title="삼성전자·엔비디아·테슬라·비트코인처럼 이름만 입력해도 검색됩니다">
+          <div id="acbox" class="acbox"></div>
+        </div>
         <input type="number" id="qty" placeholder="수량" step="any">
         <input type="number" id="price" placeholder="매수가" step="any">
         <select id="curIn"><option value="auto">native</option><option>KRW</option><option>USD</option></select>
@@ -181,6 +199,146 @@ async function yQuote(symbol){
   if(!m||m.regularMarketPrice==null) throw new Error("no price "+symbol);
   return {price:m.regularMarketPrice, cur:m.currency||"USD"};
 }
+/* ============ 종목명 → 코드 (별칭 + Yahoo 검색) ============ */
+const ALIAS = [
+  // 국내
+  ["005930.KS","삼성전자","samsung","삼전"],["005935.KS","삼성전자우"],
+  ["000660.KS","SK하이닉스","하이닉스","hynix"],["035720.KS","카카오","kakao"],
+  ["035420.KS","네이버","naver","NAVER"],["373220.KS","LG에너지솔루션","엔솔","lg에너지"],
+  ["005380.KS","현대차","현대자동차","hyundai"],["000270.KS","기아","kia"],
+  ["207940.KS","삼성바이오로직스","삼바"],["068270.KS","셀트리온","celltrion"],
+  ["005490.KS","POSCO홀딩스","포스코","posco"],["006400.KS","삼성SDI"],
+  ["323410.KS","카카오뱅크","카뱅"],["259960.KS","크래프톤","krafton"],
+  ["086520.KQ","에코프로"],["247540.KQ","에코프로비엠"],["091990.KQ","셀트리온헬스케어"],
+  ["042660.KS","한화오션"],["012450.KS","한화에어로스페이스","한화에어로"],
+  ["028260.KS","삼성물산"],["066570.KS","LG전자","lg전자"],["051910.KS","LG화학"],
+  ["012330.KS","현대모비스","모비스","mobis"],["105560.KS","KB금융","kb금융","케이비금융"],
+  ["055550.KS","신한지주","신한금융"],["086790.KS","하나금융지주","하나금융"],
+  ["316140.KS","우리금융지주","우리금융"],["015760.KS","한국전력","한전","kepco"],
+  ["034730.KS","SK","에스케이"],["003550.KS","LG"],["096770.KS","SK이노베이션","sk이노"],
+  ["009150.KS","삼성전기"],["032830.KS","삼성생명"],["000810.KS","삼성화재"],
+  ["018260.KS","삼성에스디에스","삼성SDS"],["010130.KS","고려아연"],
+  ["010950.KS","S-Oil","에쓰오일","에스오일"],["011200.KS","HMM","에이치엠엠"],
+  ["329180.KS","HD현대중공업","현대중공업"],["267260.KS","HD현대일렉트릭"],
+  ["010140.KS","삼성중공업"],["051900.KS","LG생활건강","엘지생활건강"],
+  ["090430.KS","아모레퍼시픽","아모레"],["097950.KS","CJ제일제당"],
+  ["271560.KS","오리온"],["282330.KS","BGF리테일"],["161390.KS","한국타이어","한국타이어앤테크놀로지"],
+  ["003670.KS","포스코퓨처엠","포스코케미칼"],["302440.KS","SK바이오사이언스","sk바사"],
+  ["302440.KS","에스케이바이오사이언스"],["196170.KQ","알테오젠"],["222800.KQ","심텍"],
+  ["041510.KQ","에스엠","SM","에스엠엔터"],["035900.KQ","JYP","JYP엔터","제이와이피"],
+  ["122870.KQ","와이지엔터테인먼트","YG","와이지"],["352820.KS","하이브","HYBE","빅히트"],
+  ["293490.KQ","카카오게임즈","카겜"],["263750.KQ","펄어비스"],["112040.KQ","위메이드"],
+  ["095660.KQ","네오위즈"],["036570.KS","엔씨소프트","엔씨","NC"],["251270.KS","넷마블"],
+  ["377300.KS","카카오페이","카페이"],["272210.KS","한화시스템"],["010620.KS","HD현대미포"],
+  ["009540.KS","HD한국조선해양","한국조선해양"],["011070.KS","LG이노텍","엘지이노텍"],
+  ["064350.KS","현대로템"],["042700.KS","한미반도체"],["058470.KQ","리노공업"],
+  ["240810.KQ","원익IPS"],["357780.KQ","솔브레인"],["348370.KQ","엔켐"],
+  ["137310.KQ","에스디바이오센서"],["145020.KQ","휴젤"],["028300.KQ","HLB","에이치엘비"],
+  ["214150.KQ","클래시스"],["122870.KQ","YG엔터테인먼트"],["005070.KS","코스모신소재"],
+  // 해외
+  ["NVDA","엔비디아","nvidia"],["TSLA","테슬라","tesla"],["AAPL","애플","apple"],
+  ["MSFT","마이크로소프트","microsoft","ms"],["AMZN","아마존","amazon"],
+  ["GOOGL","구글","google","알파벳","alphabet"],["META","메타","페이스북","facebook"],
+  ["NFLX","넷플릭스","netflix"],["PLTR","팔란티어","palantir"],
+  ["AMD","에이엠디","amd"],["INTC","인텔","intel"],["AVGO","브로드컴","broadcom"],
+  ["TSM","TSMC","티에스엠씨"],["COIN","코인베이스","coinbase"],["MSTR","마이크로스트레티지","strategy"],
+  // 가상자산
+  ["BTC-USD","비트코인","bitcoin","btc","비트"],["ETH-USD","이더리움","ethereum","eth","이더"],
+  ["XRP-USD","리플","xrp","ripple"],["SOL-USD","솔라나","solana","sol"],
+  ["DOGE-USD","도지코인","dogecoin","doge","도지"],["ADA-USD","에이다","cardano","ada"],
+  // 환율·원자재
+  ["GC=F","금","gold","골드"],["CL=F","WTI","원유","oil","유가"],
+  ["KRW=X","달러원","usdkrw","원달러"]
+];
+function aliasMatch(q){
+  const k=q.trim().toLowerCase(); if(!k) return [];
+  const out=[];
+  for(const [sym,...names] of ALIAS){
+    if(sym.toLowerCase()===k){ out.push({symbol:sym,name:names[0],ex:"별칭",score:0}); continue; }
+    for(const n of names){
+      const nl=n.toLowerCase();
+      if(nl===k){ out.push({symbol:sym,name:names[0],ex:"별칭",score:1}); break; }
+      if(nl.startsWith(k)||k.startsWith(nl)){ out.push({symbol:sym,name:names[0],ex:"별칭",score:2}); break; }
+      if(nl.includes(k)){ out.push({symbol:sym,name:names[0],ex:"별칭",score:3}); break; }
+    }
+  }
+  return out.sort((a,b)=>a.score-b.score).slice(0,6);
+}
+/* Yahoo 검색 API */
+async function ySearch(q){
+  try{
+    const u=`https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`;
+    const j=await jget(u);
+    return (j?.quotes||[]).filter(x=>x.symbol).map(x=>({
+      symbol:x.symbol,
+      name:x.shortname||x.longname||x.symbol,
+      ex:x.exchDisp||x.typeDisp||x.quoteType||""
+    }));
+  }catch(e){ return []; }
+}
+/* 입력값을 실제 코드로 해석: 별칭 → 검색 → 원문 */
+async function resolveSymbol(raw){
+  const q=raw.trim(); if(!q) return null;
+  const a=aliasMatch(q);
+  if(a.length && a[0].score<=1) return a[0].symbol;        // 정확/별칭 일치
+  // 코드 형태면 그대로 시도
+  if(/^[A-Za-z0-9.\-=^]+$/.test(q)){
+    try{ await yQuote(sym$(q)); return sym$(q); }catch(e){}
+  }
+  if(a.length) return a[0].symbol;                          // 부분 별칭
+  const s=await ySearch(q);
+  return s.length? s[0].symbol : null;
+}
+
+/* ============ 자동완성 드롭다운 ============ */
+let acList=[], acSel=-1, acTimer=null;
+function acRender(){
+  const box=document.getElementById("acbox");
+  if(!acList.length){ box.classList.remove("on"); box.innerHTML=""; return; }
+  box.innerHTML=acList.map((it,i)=>`<div class="acitem ${i===acSel?'sel':''}"
+     onmousedown="acPick(${i})">
+     <span class="nm">${it.name}<br><span class="ex">${it.ex||''}</span></span>
+     <span class="sy">${it.symbol}</span></div>`).join("");
+  box.classList.add("on");
+}
+function acSearch(){
+  const q=document.getElementById("sym").value;
+  acSel=-1;
+  acList=aliasMatch(q);
+  acRender();
+  clearTimeout(acTimer);
+  if(q.trim().length<1) return;
+  acTimer=setTimeout(async()=>{
+    const remote=await ySearch(q);
+    const seen=new Set(acList.map(x=>x.symbol));
+    remote.forEach(r=>{ if(!seen.has(r.symbol)){ acList.push(r); seen.add(r.symbol); }});
+    acList=acList.slice(0,8);
+    if(document.getElementById("sym").value!==q) return;
+    if(!acList.length){
+      const box=document.getElementById("acbox");
+      box.innerHTML=`<div class="acmsg">'${q}' 결과 없음 — 영문명(예: Hyundai Mobis)이나 종목코드(012330.KS)로 입력해 보세요</div>`;
+      box.classList.add("on");
+    } else acRender();
+  },280);
+}
+function acPick(i){
+  const it=acList[i]; if(!it) return;
+  document.getElementById("sym").value=it.symbol;
+  acList=[]; acRender();
+  document.getElementById("qty").focus();
+}
+function acKey(e){
+  const box=document.getElementById("acbox");
+  if(!acList.length || !box.classList.contains("on")){
+    if(e.key==="Enter"){ e.preventDefault(); addLot(); } return;
+  }
+  if(e.key==="ArrowDown"){ e.preventDefault(); acSel=Math.min(acSel+1,acList.length-1); acRender(); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); acSel=Math.max(acSel-1,0); acRender(); }
+  else if(e.key==="Enter"){ e.preventDefault(); acPick(acSel>=0?acSel:0); }
+  else if(e.key==="Escape"){ acList=[]; acRender(); }
+}
+function acBlur(){ setTimeout(()=>{ acList=[]; acRender(); },180); }
+
 /* Yahoo 특정 날짜 종가(±5일 윈도우에서 근접값) */
 async function yHist(symbol, dateStr){
   if(!dateStr) return null;
@@ -269,16 +427,20 @@ function pctCell(p){
 
 /* ============ 매수 추가 ============ */
 async function addLot(){
-  const sym=sym$(document.getElementById("sym").value);
+  const raw=document.getElementById("sym").value;
   const qty=parseFloat(document.getElementById("qty").value);
   const price=parseFloat(document.getElementById("price").value);
   const curIn=document.getElementById("curIn").value;
   const bdate=document.getElementById("bdate").value;
-  if(!sym||!qty||!price){ alert("종목코드 / 수량 / 매수가를 입력하세요.\n예) 삼성전자=005930.KS, 카카오=035720.KS, 애플=AAPL"); return; }
+  if(!raw||!raw.trim()||!qty||!price){ alert("종목명 / 수량 / 매수가를 입력하세요.\n예) 삼성, 엔비디아, 테슬라, 비트코인"); return; }
+
+  // 이름·약칭 → 실제 코드 해석
+  const sym = await resolveSymbol(raw);
+  if(!sym){ alert(`"${raw}" 종목을 찾지 못했습니다. 다른 이름이나 코드로 시도해 주세요.`); return; }
 
   // 종목 통화 파악
   let q;
-  try{ q=await yQuote(sym); }catch(e){ if(!confirm("시세를 못 가져왔습니다. 종목코드가 맞나요? 그래도 추가할까요?")) return; q={price:null,cur:sym.endsWith(".KS")||sym.endsWith(".KQ")?"KRW":"USD"}; }
+  try{ q=await yQuote(sym); }catch(e){ if(!confirm(`'${raw}' → ${sym} 시세를 못 가져왔습니다. 그래도 추가할까요?`)) return; q={price:null,cur:sym.endsWith(".KS")||sym.endsWith(".KQ")?"KRW":"USD"}; }
   quotes[sym]=q;
   const native = curIn==="auto"? q.cur : curIn;
 
