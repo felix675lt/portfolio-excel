@@ -476,7 +476,7 @@ function loadSample(){
 
 /* ============ 렌더 ============ */
 const COLS=["","종목 / 회차","수량","매수가(원)","매수가($)","현재가(원)","현재가($)",
-  "수익률 ₩","수익률 $","수익률 ₿(sat)","평가금액","손익","삭제"];
+  "수익률 ₩","수익률 $","수익률 ₿(sat)","매수총금액","평가금액","손익","삭제"];
 function colLetters(n){ // A,B,C...
   let s=[]; for(let i=0;i<n;i++) s.push(String.fromCharCode(65+i)); return s;
 }
@@ -538,6 +538,7 @@ function render(){
         <td class="num">${money(nowKRW,'KRW',fx)}</td>
         <td class="num">${nowUSD!=null?'$'+fmt(nowUSD,2):'-'}</td>
         ${pctCell(rK)}${pctCell(rU)}${pctCell(rS)}
+        <td class="num">${money(costKRW,base,fx)}</td>
         <td class="num">${money(valKRW,base,fx)}</td>
         <td class="num ${plKRW>=0?'up':'down'}">${plKRW!=null?(plKRW>=0?'+':'')+money(plKRW,base,fx):'-'}</td>
         <td style="text-align:center"><button class="delbtn" onclick="delLot(${l.id})">✕</button></td>
@@ -558,6 +559,7 @@ function render(){
       <td class="num">${money(curPxNativeKRW,'KRW',fx)}</td>
       <td class="num">${(curPxNativeKRW!=null&&fx.USDKRW)?'$'+fmt(curPxNativeKRW/fx.USDKRW,2):'-'}</td>
       ${pctCell(avgR)}<td class="num">-</td><td class="num">-</td>
+      <td class="num">${money(sumCostKRW,base,fx)}</td>
       <td class="num">${money(sumValKRW,base,fx)}</td>
       <td class="num ${avgPL>=0?'up':'down'}">${(avgPL>=0?'+':'')+money(avgPL,base,fx)}</td>
       <td></td></tr>`);
