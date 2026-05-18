@@ -56,11 +56,12 @@
   .btn.sec{background:#eaeaea;color:#333}
   /* ===== Formula bar ===== */
   .fbar{display:flex;align-items:center;height:24px;border-bottom:1px solid var(--grid);
-    background:var(--cell-bg);font-size:9pt}
+    background:var(--cell-bg);font-size:9pt;overflow:hidden}
   .fbar .namebox{width:120px;border-right:1px solid var(--grid);padding:0 8px;color:var(--muted);
     height:100%;display:flex;align-items:center}
   .fbar .fx{padding:0 8px;color:var(--muted);font-style:italic}
-  .fbar .content{padding:0 10px;color:var(--fg)}
+  .fbar .content{padding:0 10px;color:var(--fg);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;flex:1;font-size:8.5pt}
   /* ===== Grid ===== */
   .sheetwrap{overflow:auto;height:calc(100vh - 30px - 26px - 84px - 24px - 22px)}
   table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
@@ -118,10 +119,13 @@
         <input type="number" id="qty" placeholder="수량" step="any">
         <input type="number" id="price" placeholder="매수가" step="any">
         <select id="curIn"><option value="auto">native</option><option>KRW</option><option>USD</option></select>
-        <input type="date" id="bdate" style="width:120px">
+        <input type="date" id="bdate" style="width:120px" title="매수일 (그날 일봉 종가 환율·BTC 기준)">
+        <input type="time" id="btime" style="width:88px" title="(선택) 매수 시각 — 입력 시 BTC를 시간봉으로 정밀 환산">
+        <input type="number" id="usdManual" placeholder="$실체결가" step="any" style="width:84px"
+               title="(선택) 실제 체결 달러단가를 알면 입력 → 그 값으로 달러·사토시 기준 덮어씀">
         <button class="btn" onclick="addLot()">＋ 매수 추가</button>
       </div>
-      <div class="lbl">새 매수 회차 입력 (한 종목을 여러 번 사면 A1·A2·A3…로 누적)</div>
+      <div class="lbl">매수일=그날 일봉 종가 기준 · 시각/＄실체결가는 선택(정밀·실측)</div>
     </div>
     <div class="grp">
       <div class="row">
@@ -147,7 +151,7 @@
   <div class="fbar">
     <div class="namebox" id="namebox">A1</div>
     <div class="fx">fx</div>
-    <div class="content" id="fxcontent">시세 자동 연동 — Yahoo Finance · 환율 · 비트코인 실시간</div>
+    <div class="content" id="fxcontent" title="기준: 매수가($/sat)=매수일 일봉 종가 · 평균=수량가중평균 · BTC-USD=글로벌 대형거래소(바이낸스·코인베이스 등) 종합가 · ⚠️ 한국주식 sat은 장마감(≈06:00 UTC)과 BTC·환율 종가 시점차로 오차 가능 — 미국주식·코인거래소 상장 확대 시 정밀도 향상">기준: 매수가($/sat)=매수일 일봉 종가 · 평균=수량가중평균 · BTC-USD=글로벌 대형거래소(바이낸스·코인베이스 등) 종합가 · ⚠️ 한국주식 sat은 장마감(≈06:00 UTC)과 BTC·환율 종가 시점차로 오차 가능 — 미국주식·코인거래소 상장 확대 시 정밀도 향상</div>
   </div>
 
   <div class="sheetwrap">
@@ -360,6 +364,27 @@ async function yHist(symbol, dateStr){
   }catch(e){return null;}
 }
 
+/* BTC 등 24h 자산: 매수일+시각의 시간봉 근접가 (정밀모드) */
+async function yHistHour(symbol, dateStr, timeStr){
+  if(!dateStr||!timeStr) return null;
+  const dt=new Date(`${dateStr}T${timeStr}:00Z`).getTime()/1000;
+  if(isNaN(dt)) return null;
+  const p1=Math.floor(dt)-3*86400, p2=Math.floor(dt)+3*86400;
+  const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${p1}&period2=${p2}&interval=1h`;
+  try{
+    const j=await jget(u);
+    const r=j?.chart?.result?.[0];
+    const ts=r?.timestamp||[], cl=r?.indicators?.quote?.[0]?.close||[];
+    let best=null,bd=1e18;
+    for(let i=0;i<ts.length;i++){
+      if(cl[i]==null) continue;
+      const diff=Math.abs(ts[i]-dt);
+      if(diff<bd){bd=diff;best=cl[i];}
+    }
+    return best;
+  }catch(e){ return null; }
+}
+
 /* ============ 시세/환율 새로고침 ============ */
 async function fetchRates(){
   const map={USDKRW:"KRW=X",EURKRW:"EURKRW=X",JPYKRW:"JPYKRW=X",BTCUSD:"BTC-USD"};
@@ -432,6 +457,8 @@ async function addLot(){
   const price=parseFloat(document.getElementById("price").value);
   const curIn=document.getElementById("curIn").value;
   const bdate=document.getElementById("bdate").value;
+  const btime=document.getElementById("btime").value;
+  const usdManual=parseFloat(document.getElementById("usdManual").value)||null;
   if(!raw||!raw.trim()||!qty||!price){ alert("종목명 / 수량 / 매수가를 입력하세요.\n예) 삼성, 엔비디아, 테슬라, 비트코인"); return; }
 
   // 이름·약칭 → 실제 코드 해석
@@ -453,11 +480,18 @@ async function addLot(){
     ]);
     bfx={USDKRW:uk||fxNow.USDKRW, JPYKRW:jk||fxNow.JPYKRW,
          EURKRW:ek||fxNow.EURKRW, BTCUSD:bu||fxNow.BTCUSD};
+    // 정밀모드: 시각 입력 시 BTC만 시간봉으로 보정 (코인 24h)
+    if(btime){
+      const bh=await yHistHour("BTC-USD",bdate,btime);
+      if(bh) bfx.BTCUSD=bh;
+    }
   }
-  lots.push({id:Date.now()+Math.random(), sym, qty, price, native, date:bdate||"", bfx});
+  lots.push({id:Date.now()+Math.random(), sym, qty, price, native,
+             date:bdate||"", time:btime||"", usdManual, bfx});
   save();
   document.getElementById("sym").value=document.getElementById("qty").value=
-  document.getElementById("price").value=""; document.getElementById("bdate").value="";
+  document.getElementById("price").value=document.getElementById("usdManual").value="";
+  document.getElementById("bdate").value=document.getElementById("btime").value="";
   refreshAll();
 }
 function delLot(id){ lots=lots.filter(l=>l.id!=id); save(); render(); }
@@ -475,7 +509,7 @@ function loadSample(){
 }
 
 /* ============ 렌더 ============ */
-const COLS=["","종목 / 회차","수량","매수가(원)","매수가($)","현재가(원)","현재가($)",
+const COLS=["","종목 / 회차","수량","매수가(원)","매수가($)","매수가(₿sat)","현재가(원)","현재가($)",
   "수익률 ₩","수익률 $","수익률 ₿(sat)","매수총금액","평가금액","손익","삭제"];
 function colLetters(n){ // A,B,C...
   let s=[]; for(let i=0;i<n;i++) s.push(String.fromCharCode(65+i)); return s;
@@ -511,11 +545,13 @@ function render(){
         <td colspan="${COLS.length-2}">▣ ${sym} &nbsp; 현재가 ${q.price!=null?money(curPxNativeKRW,base,fx):"로딩…"}
         ${q.cur&&q.cur!=="?"?`(${q.cur})`:""}</td><td></td></tr>`);
 
-    let sumQty=0,sumCostKRW=0,sumValKRW=0;
+    let sumQty=0,sumCostKRW=0,sumValKRW=0,sumCostUSD=0,sumCostSat=0,qtyUSD=0,qtySat=0;
     g.forEach((l,i)=>{
       const bfx=l.bfx||fx;
       const buyKRW = toKRW(l.price,l.native,bfx);
-      const buyUSD = bfx.USDKRW? buyKRW/bfx.USDKRW : null;
+      // 달러 매수가: 기본=매수일 환율 종가, 실체결가 입력 시 그 값으로 덮어씀
+      let buyUSD = bfx.USDKRW? buyKRW/bfx.USDKRW : null;
+      if(l.usdManual) buyUSD = l.usdManual;
       const buySat = (buyUSD!=null&&bfx.BTCUSD)? buyUSD/bfx.BTCUSD*1e8 : null;
       const nowKRW = curPxNativeKRW;
       const nowUSD = (nowKRW!=null&&fx.USDKRW)? nowKRW/fx.USDKRW : null;
@@ -527,14 +563,18 @@ function render(){
       const costKRW = buyKRW!=null? buyKRW*l.qty : null;
       const plKRW = (valKRW!=null&&costKRW!=null)? valKRW-costKRW : null;
       sumQty+=l.qty; if(costKRW)sumCostKRW+=costKRW; if(valKRW)sumValKRW+=valKRW;
+      if(buyUSD!=null){ sumCostUSD+=buyUSD*l.qty; qtyUSD+=l.qty; }
+      if(buySat!=null){ sumCostSat+=buySat*l.qty; qtySat+=l.qty; }
 
       const lab=String.fromCharCode(65+Object.keys(groups).indexOf(sym))+(i+1);
-      tb.insertAdjacentHTML("beforeend",`<tr class="lot">
+      const tdesc = l.usdManual? ` title="＄실체결가 입력값 적용"` : (l.time? ` title="${l.date} ${l.time} 시간봉 정밀"` : "");
+      tb.insertAdjacentHTML("beforeend",`<tr class="lot"${tdesc}>
         <td class="rownum">${rn++}</td>
-        <td><b>${lab}</b> &nbsp;<span style="color:var(--muted)">${l.date||"-"}</span></td>
+        <td><b>${lab}</b> &nbsp;<span style="color:var(--muted)">${l.date||"-"}${l.time?' '+l.time:''}${l.usdManual?' ✎$':''}</span></td>
         <td class="num">${fmt(l.qty,l.qty%1?4:0)}</td>
         <td class="num">${money(buyKRW,'KRW',fx)}</td>
         <td class="num">${buyUSD!=null?'$'+fmt(buyUSD,2):'-'}</td>
+        <td class="num">${buySat!=null?fmt(buySat,0)+' sat':'-'}</td>
         <td class="num">${money(nowKRW,'KRW',fx)}</td>
         <td class="num">${nowUSD!=null?'$'+fmt(nowUSD,2):'-'}</td>
         ${pctCell(rK)}${pctCell(rU)}${pctCell(rS)}
@@ -547,15 +587,18 @@ function render(){
 
     // 평균단가 행
     const avgKRW = sumQty? sumCostKRW/sumQty : null;
-    const avgUSD = (avgKRW!=null&&fx.USDKRW)? avgKRW/fx.USDKRW : null;
+    // 평균 달러/사토시 = 회차별 매수가의 수량가중평균 (기준 일치)
+    const avgUSD = qtyUSD? sumCostUSD/qtyUSD : null;
+    const avgSat = qtySat? sumCostSat/qtySat : null;
     const avgR = (avgKRW&&sumValKRW)? (sumValKRW/sumCostKRW-1)*100 : null;
     const avgPL = sumValKRW-sumCostKRW;
-    tb.insertAdjacentHTML("beforeend",`<tr class="avg">
+    tb.insertAdjacentHTML("beforeend",`<tr class="avg" title="회차별 매수가의 수량가중평균">
       <td class="rownum">${rn++}</td>
       <td>∑ ${sym} 평균단가</td>
       <td class="num">${fmt(sumQty,sumQty%1?4:0)}</td>
       <td class="num">${money(avgKRW,'KRW',fx)}</td>
       <td class="num">${avgUSD!=null?'$'+fmt(avgUSD,2):'-'}</td>
+      <td class="num">${avgSat!=null?fmt(avgSat,0)+' sat':'-'}</td>
       <td class="num">${money(curPxNativeKRW,'KRW',fx)}</td>
       <td class="num">${(curPxNativeKRW!=null&&fx.USDKRW)?'$'+fmt(curPxNativeKRW/fx.USDKRW,2):'-'}</td>
       ${pctCell(avgR)}<td class="num">-</td><td class="num">-</td>
