@@ -81,6 +81,9 @@
   .delbtn{background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:11pt}
   .delbtn:hover{color:var(--up)}
   .empty{padding:40px;text-align:center;color:var(--muted)}
+  tr.fill td{height:21px;background:var(--cell-bg)}
+  tr.fill td.rownum{color:var(--hdr-fg)}
+  .memogrid tr.fill td{height:21px;background:var(--cell-bg)}
   /* ===== Status bar ===== */
   .statusbar{height:22px;background:var(--ribbon);color:#fff;font-size:8.5pt;
     display:flex;align-items:center;padding:0 12px;gap:18px}
@@ -666,6 +669,20 @@ const COLS=["","종목 / 회차","수량","매수가(원)","매수가($)","매�
 function colLetters(n){ // A,B,C...
   let s=[]; for(let i=0;i<n;i++) s.push(String.fromCharCode(65+i)); return s;
 }
+/* 데이터 아래 빈 영역을 엑셀처럼 격자로 채움 */
+function fillGrid(tbody, cols, wrap){
+  if(!tbody||!wrap) return;
+  const used=tbody.querySelectorAll("tr").length;
+  const rh=21, h=wrap.clientHeight||600;
+  let need=Math.ceil(h/rh)-used+4;
+  need=Math.max(need,8); need=Math.min(need,300);
+  let html="";
+  for(let k=0;k<need;k++){
+    html+=`<tr class="fill"><td class="rownum">${used+k+1}</td>`+
+          "<td></td>".repeat(cols-1)+"</tr>";
+  }
+  tbody.insertAdjacentHTML("beforeend",html);
+}
 function render(){
   const base=document.getElementById("baseCur").value;
   const fx=fxNow;
@@ -680,7 +697,8 @@ function render(){
     tb.innerHTML=`<tr><td colspan="${COLS.length}" class="empty">
       상단 리본에서 종목을 추가하세요. (예: 삼성전자 <b>005930.KS</b>, 카카오 <b>035720.KS</b>, 애플 <b>AAPL</b>)<br>
       또는 <b>샘플 불러오기</b>로 미리보기</td></tr>`;
-    statTotals(0,0,base,fx); return;
+    statTotals(0,0,base,fx);
+    fillGrid(tb, COLS.length, document.querySelector(".sheetwrap")); return;
   }
 
   // 종목별 그룹
@@ -762,6 +780,7 @@ function render(){
     totCostKRW+=sumCostKRW; totValKRW+=sumValKRW;
   }
   statTotals(totCostKRW,totValKRW,base,fx);
+  fillGrid(tb, COLS.length, document.querySelector(".sheetwrap"));
 }
 function statTotals(cost,val,base,fx){
   document.getElementById("st-count").textContent =
@@ -861,7 +880,8 @@ function renderQuotes(){
   const base=document.getElementById("homeCur").value;
   const tb=document.getElementById("quoteBody");
   const list=mktList();
-  if(!list.length){ tb.innerHTML=`<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--muted)">관심종목을 추가하세요</td></tr>`; return; }
+  if(!list.length){ tb.innerHTML=`<tr><td colspan="6" style="padding:30px;text-align:center;color:var(--muted)">관심종목을 추가하세요</td></tr>`;
+    fillGrid(tb,6,document.querySelector(".quotewrap")); return; }
   tb.innerHTML=list.map(([s,nm],i)=>{
     const q=quotes[s];
     const isW=watch.some(w=>w[0]===s);
@@ -882,6 +902,7 @@ function renderQuotes(){
       <td class="num ${cc}">${cs}</td>
       <td style="text-align:center">${isW?`<button class="wdel" onclick="watchDel('${s}')">✕</button>`:'<span style="color:var(--muted)">★</span>'}</td></tr>`;
   }).join("");
+  fillGrid(tb,6,document.querySelector(".quotewrap"));
 }
 
 /* ============ 홈: 메모(자기 피드백, 스프레드시트형) ============ */
@@ -899,13 +920,15 @@ function memoEdit(i,elm){ memo[i]=elm.innerText.trim(); memoSave(); }
 function memoDel(i){ memo.splice(i,1); memoSave(); renderMemo(); }
 function renderMemo(){
   const tb=document.getElementById("memoBody");
-  if(!memo.length){ tb.innerHTML=`<tr><td></td><td class="memoempty">셀에 나에게 주는 피드백을 적어보세요.<br>예) 평균단가에 속지 말자 / 분할매수 원칙 지키기</td><td></td></tr>`; return; }
+  if(!memo.length){ tb.innerHTML=`<tr><td class="rownum">1</td><td class="memoempty">셀에 나에게 주는 피드백을 적어보세요.<br>예) 평균단가에 속지 말자 / 분할매수 원칙 지키기</td><td></td></tr>`;
+    fillGrid(tb,3,document.querySelector(".memowrap")); return; }
   tb.innerHTML=memo.map((m,i)=>`<tr>
     <td class="rownum">${i+1}</td>
     <td><div class="memocell" contenteditable="true"
         onblur="memoEdit(${i},this)" spellcheck="false">${esc(m)}</div></td>
     <td class="act"><button class="mdel" title="삭제" onclick="memoDel(${i})">✕</button></td>
   </tr>`).join("");
+  fillGrid(tb,3,document.querySelector(".memowrap"));
 }
 
 render();
