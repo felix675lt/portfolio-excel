@@ -170,7 +170,7 @@
     <span style="color:#cfe6da">자동 저장 ●</span>
     <div class="right">
       <span id="clock" style="color:#cfe6da"></span>
-      <button onclick="refreshAll()" id="refbtn">🔄 새로고침</button>
+      <button onclick="refreshAllNow()" id="refbtn">🔄 새로고침</button>
       <button onclick="toggleDark()">🌙 보기</button>
     </div>
   </div>
@@ -561,8 +561,9 @@ async function fetchRates(){
   if(fxNow.USDKRW) st.textContent =
     `USD/KRW ${fmt(fxNow.USDKRW,2)} · JPY/KRW ${fmt(fxNow.JPYKRW,2)} · BTC $${fmt(fxNow.BTCUSD,0)}`;
 }
-async function refreshAll(){
-  const b=document.getElementById("refbtn"); b.textContent="⏳ 갱신중…"; b.disabled=true;
+async function refreshAll(silent){
+  const b=document.getElementById("refbtn");
+  if(b && !silent){ b.textContent="⏳ 갱신중…"; b.disabled=true; }
   try{
     await fetchRates();
     const syms=[...new Set(lots.map(l=>l.sym))];
@@ -570,7 +571,8 @@ async function refreshAll(){
       try{ quotes[s]=await yQuote(s); }catch(e){ quotes[s]=quotes[s]||{price:null,cur:"?"}; }
     }));
   }finally{
-    b.textContent="🔄 새로고침"; b.disabled=false; render();
+    if(b && !silent){ b.textContent="🔄 새로고침"; b.disabled=false; }
+    render();
   }
 }
 
@@ -876,16 +878,36 @@ function natMoney(v,cur){
   if(cur==="EUR") return "€"+fmt(v,2);
   return fmt(v,2)+" "+cur;
 }
+let _homeInflight=false, _lastSyncMs=0, _failCount=0;
 async function homeRefresh(){
   if(curTab!=="home") return;
+  if(_homeInflight) return;        // 중복 호출 가드
+  _homeInflight=true;
   const list=mktList();
+  renderQuotes(); // 캐시로 즉시 렌더
+  // 환율도 함께 갱신해야 표시통화 환산값이 굳지 않음
+  let fails=0;
+  await Promise.all([
+    fetchRates().catch(()=>{fails++;}),
+    ...list.map(async([s])=>{
+      try{ quotes[s]=await yQuote(s); }catch(e){ fails++; }
+    })
+  ]);
+  _lastSyncMs=Date.now(); _failCount=fails;
   document.getElementById("mbrief").textContent=
-    `=MARKETBRIEF(${curMkt==="all"?"AUTO":curMkt.toUpperCase()})  ' ${list.length}종목 · ${new Date().toLocaleTimeString("ko-KR")} 갱신`;
-  renderQuotes(); // 우선 캐시로 즉시 렌더
-  await Promise.all(list.map(async([s])=>{
-    try{ quotes[s]=await yQuote(s); }catch(e){}
-  }));
+    `=MARKETBRIEF(${curMkt==="all"?"AUTO":curMkt.toUpperCase()})  ' ${list.length}종목 · ${new Date().toLocaleTimeString("ko-KR")} 갱신${fails?` · 실패 ${fails}건`:""}`;
   renderQuotes();
+  _homeInflight=false;
+}
+/* 어떤 탭이든 한 번에 모두 갱신 (타이틀바 버튼) */
+async function refreshAllNow(){
+  const b=document.getElementById("refbtn");
+  if(b){ b.textContent="⏳ 갱신중…"; b.disabled=true; }
+  try{
+    await Promise.all([refreshAll(true), homeRefresh()]);
+  } finally {
+    if(b){ b.textContent="🔄 새로고침"; b.disabled=false; }
+  }
 }
 function renderQuotes(){
   const base=document.getElementById("homeCur").value;
@@ -946,8 +968,14 @@ render();
 refreshAll();
 renderMemo();
 homeRefresh();
-setInterval(refreshAll, 60000);            // 포트폴리오 1분
-setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 30000); // 시세 30초
+setInterval(()=>refreshAll(true), 30000);     // 포트폴리오 30초
+setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 15000); // 홈 시세 15초
+// 탭이 다시 활성화될 때 즉시 갱신
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){
+    if(curTab==="home") homeRefresh(); else refreshAll(true);
+  }
+});
 </script>
 </body>
 </html>
