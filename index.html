@@ -1442,7 +1442,8 @@ function calcDef(){
       <span id="defMarginDist" class="fdarrow"></span>
     </div>
     <div class="fdrow">
-      <label>추매(마크가 투입)</label>
+      <label>추매 시뮬</label>
+      <input type="number" id="defDcaPrice" placeholder="추매가" step="any" oninput="defUpdate()" title="추매할 가격대 (비우면 현재 마크가)">
       <input type="range" id="defDca" min="0" max="${maxN.toFixed(2)}" step="${(maxN/500).toFixed(4)}" value="0" oninput="defUpdate()">
       <span class="fdamt" id="defDcaV">+0 U</span>
       <span class="fdarrow">→ 평단</span> <span class="fdres" id="defDcaE">-</span>
@@ -1456,6 +1457,9 @@ function calcDef(){
       <input type="number" id="defTarget" placeholder="USDT" step="any" oninput="defUpdate()">
       <span class="fdres" id="defTargetRes" style="font-weight:400">→ 가격을 입력하면 필요 증거금을 알려줍니다</span>
     </div>`;
+  const mk=futQuotes[g.sym];
+  const dpEl=document.getElementById("defDcaPrice");
+  if(dpEl&&mk) dpEl.value=mk.mark;
   defUpdate();
 }
 /* 슬라이더/입력 변경 시 결과만 갱신 (라이브) */
@@ -1478,12 +1482,13 @@ function defUpdate(){
   const ml=document.getElementById("defMarginLiq"); if(ml){ ml.textContent=fmtU(liqM,dp(liqM)); ml.style.color="var(--down)"; }
   const md=document.getElementById("defMarginDist");
   if(md) md.textContent=distM!=null?`(거리 ${fmtU(Math.abs(distM),2)}%)`:"";
-  // 추매 (마크가에 USDT 투입, 실효배율 유지)
+  // 추매 (지정 가격대에 USDT 투입, 실효배율 유지)
   const dca=+(document.getElementById("defDca")||{}).value||0;
+  const dcaP=+(document.getElementById("defDcaPrice")||{}).value||mark||0;
   let dE=g.E,dLiq=liqNow;
-  if(mark&&dca>0){
-    const qty=dca/mark, addMg=g.effLev?dca/g.effLev:0;
-    const nQ=g.Q+qty, nE=(g.E*g.Q+mark*qty)/nQ, nM=g.M+addMg;
+  if(dcaP>0&&dca>0){
+    const qty=dca/dcaP, addMg=g.effLev?dca/g.effLev:0;
+    const nQ=g.Q+qty, nE=(g.E*g.Q+dcaP*qty)/nQ, nM=g.M+addMg;
     dE=nE; dLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
   }
   const dv=document.getElementById("defDcaV"); if(dv) dv.textContent="+"+fmtU(dca,2)+" U";
