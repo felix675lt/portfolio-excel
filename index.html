@@ -514,10 +514,18 @@ const ALIAS = [
   ["NFLX","넷플릭스","netflix"],["PLTR","팔란티어","palantir"],
   ["AMD","에이엠디","amd"],["INTC","인텔","intel"],["AVGO","브로드컴","broadcom"],
   ["TSM","TSMC","티에스엠씨"],["COIN","코인베이스","coinbase"],["MSTR","마이크로스트레티지","strategy"],
-  // 가상자산
+  // 가상자산 (스팟 — 야후 기준)
   ["BTC-USD","비트코인","bitcoin","btc","비트"],["ETH-USD","이더리움","ethereum","eth","이더"],
   ["XRP-USD","리플","xrp","ripple"],["SOL-USD","솔라나","solana","sol"],
   ["DOGE-USD","도지코인","dogecoin","doge","도지"],["ADA-USD","에이다","cardano","ada"],
+  ["HYPE32196-USD","하이퍼리퀴드","hyperliquid","hype"],["BNB-USD","비엔비","bnb","바이낸스코인"],
+  ["AVAX-USD","아발란체","avalanche","avax"],["LINK-USD","체인링크","chainlink","link"],
+  ["DOT-USD","폴카닷","polkadot","dot"],["TRX-USD","트론","tron","trx"],
+  ["LTC-USD","라이트코인","litecoin","ltc"],["SUI20947-USD","수이","sui"],
+  ["ENA-USD","에테나","ethena","ena"],["TIA22861-USD","셀레스티아","celestia","tia"],
+  ["INJ-USD","인젝티브","injective","inj"],["ATOM-USD","코스모스","cosmos","atom"],
+  ["NEAR-USD","니어","near"],["APT21794-USD","앱토스","aptos","apt"],
+  ["AAVE-USD","에이브","aave"],["UNI7083-USD","유니스왑","uniswap","uni"],
   // 환율·원자재
   ["GC=F","금","gold","골드"],["CL=F","WTI","원유","oil","유가"],
   ["KRW=X","달러원","usdkrw","원달러"]
@@ -940,14 +948,31 @@ function showTab(t){
 }
 
 /* ============ 홈: 실시간 시세 ============ */
+/* 밈코인 베이스심볼 — 코인/선물 목록에서 제외 */
+const MEME=new Set(["DOGE","SHIB","PEPE","WIF","BONK","FLOKI","MEME","BOME","BABYDOGE",
+  "TRUMP","MELANIA","MOG","NEIRO","NEIROETH","POPCAT","MEW","BRETT","TURBO","PNUT",
+  "ACT","GOAT","CHILLGUY","MOODENG","HIPPO","DOGS","FARTCOIN","PEOPLE","BAN","SLERF",
+  "MYRO","WEN","CAT","MUMU","BABYBONK","SUNDOG","DEGEN","TOSHI","AIDOGE","SAMO"]);
 const MKT={
   kr:[["005930.KS","삼성전자"],["000660.KS","SK하이닉스"],["035720.KS","카카오"],
       ["035420.KS","NAVER"],["005380.KS","현대차"],["373220.KS","LG에너지솔루션"],
-      ["000270.KS","기아"],["207940.KS","삼성바이오로직스"]],
+      ["000270.KS","기아"],["207940.KS","삼성바이오로직스"],["005490.KS","POSCO홀딩스"],
+      ["051910.KS","LG화학"],["006400.KS","삼성SDI"],["012450.KS","한화에어로스페이스"]],
   us:[["AAPL","애플"],["NVDA","엔비디아"],["TSLA","테슬라"],["MSFT","마이크로소프트"],
-      ["GOOGL","알파벳"],["AMZN","아마존"],["META","메타"],["AMD","AMD"]],
-  coin:[["BTC-USD","비트코인"],["ETH-USD","이더리움"],["XRP-USD","리플"],
-        ["SOL-USD","솔라나"],["DOGE-USD","도지코인"],["ADA-USD","에이다"]]
+      ["GOOGL","알파벳"],["AMZN","아마존"],["META","메타"],["AMD","AMD"],
+      ["AVGO","브로드컴"],["PLTR","팔란티어"],["COIN","코인베이스"],["MSTR","마이크로스트레티지"]],
+  // 코인은 바이낸스(USDT) 기준 — 밈 제외 인기 종목
+  coin:[["BTCUSDT","비트코인"],["ETHUSDT","이더리움"],["SOLUSDT","솔라나"],
+        ["XRPUSDT","리플"],["BNBUSDT","BNB"],["ADAUSDT","에이다"],
+        ["HYPEUSDT","하이퍼리퀴드"],["AVAXUSDT","아발란체"],["LINKUSDT","체인링크"],
+        ["DOTUSDT","폴카닷"],["TRXUSDT","트론"],["LTCUSDT","라이트코인"],
+        ["BCHUSDT","비트코인캐시"],["ATOMUSDT","코스모스"],["NEARUSDT","니어"],
+        ["APTUSDT","앱토스"],["ARBUSDT","아비트럼"],["OPUSDT","옵티미즘"],
+        ["SUIUSDT","수이"],["ENAUSDT","에테나"],["TIAUSDT","셀레스티아"],
+        ["INJUSDT","인젝티브"],["RENDERUSDT","렌더"],["FILUSDT","파일코인"],
+        ["ICPUSDT","인터넷컴퓨터"],["AAVEUSDT","에이브"],["UNIUSDT","유니스왑"],
+        ["ETCUSDT","이더리움클래식"],["XLMUSDT","스텔라루멘"],["HBARUSDT","헤데라"],
+        ["SEIUSDT","세이"],["STXUSDT","스택스"]]
 };
 const WLS="pf_watch_v1";
 let watch=JSON.parse(localStorage.getItem(WLS)||"[]"); // [[sym,name],...] 사용자 추가
@@ -957,8 +982,8 @@ function mktList(){
   return [...(MKT[curMkt]||[]),...watch.filter(w=>{
     const k=w[0];
     if(curMkt==="kr") return k.endsWith(".KS")||k.endsWith(".KQ");
-    if(curMkt==="coin") return k.endsWith("-USD");
-    if(curMkt==="us") return !k.includes(".")&&!k.endsWith("-USD");
+    if(curMkt==="coin") return k.endsWith("USDT")||k.endsWith("-USD");
+    if(curMkt==="us") return !k.includes(".")&&!k.endsWith("-USD")&&!k.endsWith("USDT");
     return true;
   })];
 }
@@ -991,9 +1016,37 @@ function natMoney(v,cur){
   if(v==null) return "-";
   if(cur==="KRW") return "₩"+fmt(v,0);
   if(cur==="USD") return "$"+fmt(v,2);
+  if(cur==="USDT") return "$"+fmt(v, v<1?6:(v<100?4:2));
   if(cur==="JPY") return "¥"+fmt(v,0);
   if(cur==="EUR") return "€"+fmt(v,2);
   return fmt(v,2)+" "+cur;
+}
+/* 바이낸스 전용 fetch — Binance는 CORS 허용이라 직접 호출, 실패 시 프록시 */
+async function bget(url){
+  try{ const r=await fetch(url,{cache:"no-store"}); if(r.ok) return await r.json(); }catch(e){}
+  return await jget(url);
+}
+/* 바이낸스 현물 24h 전체 시세 (파라미터 없이 1회 호출 — 프록시 인코딩 이슈 회피) */
+let binTicker={}, _binTs=0;
+async function binBatch(syms){
+  if(!syms.length) return;
+  // 30초 이내 캐시 재사용 — 현물+선물 합쳐 커버리지 확대(HYPE 등 선물전용 포함)
+  if(Date.now()-_binTs>30000 || !Object.keys(binTicker).length){
+    const [spot,fut]=await Promise.all([
+      bget("https://api.binance.com/api/v3/ticker/24hr").catch(()=>null),
+      bget("https://fapi.binance.com/fapi/v1/ticker/24hr").catch(()=>null)
+    ]);
+    const m={};
+    const put=arr=>{ if(Array.isArray(arr)) arr.forEach(t=>{
+      if(t&&t.symbol&&t.lastPrice!=null) m[t.symbol]={price:+t.lastPrice,
+        prev:(+t.openPrice||+t.prevClosePrice||null)}; }); };
+    put(fut); put(spot);   // 선물 먼저 → 현물로 덮어써 현물 우선
+    if(Object.keys(m).length){ binTicker=m; _binTs=Date.now(); }
+  }
+  syms.forEach(s=>{
+    const t=binTicker[s];
+    if(t) quotes[s]={price:t.price, cur:"USDT", prev:t.prev, name:s};
+  });
 }
 let _homeInflight=false, _lastSyncMs=0, _failCount=0;
 async function homeRefresh(){
@@ -1004,9 +1057,12 @@ async function homeRefresh(){
   renderQuotes(); // 캐시로 즉시 렌더
   // 환율도 함께 갱신해야 표시통화 환산값이 굳지 않음
   let fails=0;
+  const usdt=list.map(x=>x[0]).filter(s=>/USDT$/.test(s));
+  const others=list.filter(x=>!/USDT$/.test(x[0]));
   await Promise.all([
     fetchRates().catch(()=>{fails++;}),
-    ...list.map(async([s])=>{
+    binBatch(usdt).catch(()=>{fails++;}),
+    ...others.map(async([s])=>{
       try{ quotes[s]=await yQuote(s); }catch(e){ fails++; }
     })
   ]);
@@ -1094,7 +1150,7 @@ const FCOLS=["","심볼 / 회차","방향","배율","진입가","수량","증거
 /* 바이낸스 선물 마크가·펀딩 */
 async function bQuote(sym){
   const u=`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${encodeURIComponent(sym)}`;
-  const j=await jget(u);
+  const j=await bget(u);
   if(j&&j.markPrice!=null) return {mark:+j.markPrice, funding:+j.lastFundingRate, nextFunding:+j.nextFundingTime};
   throw new Error("no fut "+sym);
 }
@@ -1183,10 +1239,32 @@ function addFut(){
 }
 function delFut(id){ futPos=futPos.filter(p=>p.id!=id); localStorage.setItem(FUTLS,JSON.stringify(futPos)); renderFut(); }
 
+/* 바이낸스 USDT-M 무기한 전 종목을 datalist에 로드 (밈 제외) */
+let _futSymsLoaded=false;
+async function loadFutSymbols(){
+  if(_futSymsLoaded) return;
+  try{
+    const j=await bget("https://fapi.binance.com/fapi/v1/exchangeInfo");
+    const syms=(j&&j.symbols||[])
+      .filter(s=>s.contractType==="PERPETUAL"&&s.quoteAsset==="USDT"
+        &&s.status==="TRADING"&&!MEME.has((s.baseAsset||"").toUpperCase()))
+      .map(s=>s.symbol)
+      .sort();
+    if(syms.length){
+      document.getElementById("permList").innerHTML=
+        syms.map(s=>`<option>${s}</option>`).join("");
+      _futSymsLoaded=true;
+      const fb=document.getElementById("fbrief");
+      if(fb) fb.textContent=`=LIQ(ISOLATED) · 바이낸스 USDT-M ${syms.length}종목 로드(밈 제외) · 청산은 마크가 기준 · 추정치`;
+    }
+  }catch(e){}
+}
+
 let _futInflight=false;
 async function futRefresh(){
   if(curTab!=="fut"||_futInflight) return;
   _futInflight=true;
+  loadFutSymbols();
   renderFut();
   const syms=[...new Set([...futPos.map(p=>p.sym), _lastFSym].filter(Boolean))];
   await Promise.all(syms.map(async s=>{ try{ futQuotes[s]=await bQuote(s); }catch(e){} }));
