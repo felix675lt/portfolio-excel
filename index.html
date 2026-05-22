@@ -177,6 +177,13 @@
   .sidetog button:last-child{border-radius:0 3px 3px 0}
   .sidetog #fLong.on{background:var(--up);color:#fff;border-color:var(--up)}
   .sidetog #fShort.on{background:var(--down);color:#fff;border-color:var(--down)}
+  .sidetog .mtog.on{background:var(--ribbon);color:#fff;border-color:var(--ribbon)}
+  .fcrossbar{background:#fff7e0;border-bottom:1px solid var(--grid);padding:5px 12px;
+    font-size:8.5pt;display:none}
+  .fcrossbar.on{display:block}
+  body.dark .fcrossbar{background:#33301c}
+  .fcrossbar b{font-variant-numeric:tabular-nums}
+  .fcrossbar .mr-ok{color:var(--up)}.fcrossbar .mr-bad{color:var(--down);font-weight:700}
   .fcout{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .ocard{background:var(--cell-bg);border:1px solid var(--grid);border-radius:4px;
     padding:5px 10px;min-width:96px}
@@ -462,6 +469,14 @@
           <input type="number" id="fAmt" placeholder="값" step="any" oninput="calcFut()">
         </label>
         <label>MMR<span class="hlp" data-tip="유지증거금률(Maintenance Margin Rate). 포지션을 유지하려면 최소로 갖고 있어야 하는 증거금 비율. 평가금이 이 밑으로 내려가면 청산돼요. 보통 BTC 0.4%, 알트는 더 높아요.">?</span><input type="number" id="fMmr" value="0.4" step="0.05" oninput="calcFut()"><span class="suf">%</span></label>
+        <label>마진<span class="hlp" data-tip="격리=이 포지션에 넣은 증거금만 위험. 교차=선물 지갑 전체가 담보. 교차는 청산가가 더 멀지만, 청산되면 지갑 전체를 잃을 수 있어요.">?</span>
+          <span class="sidetog">
+            <button type="button" id="fIso" class="mtog on" onclick="setMarginMode('ISO')">격리</button>
+            <button type="button" id="fCross" class="mtog" onclick="setMarginMode('CROSS')">교차</button>
+          </span>
+        </label>
+        <label id="fWalletWrap" style="display:none">지갑 총잔액<span class="hlp" data-tip="교차 담보로 쓰는 선물 지갑 전체 잔액(USDT). 교차 청산가는 이 값 전체가 받쳐줘요. 거래소 지갑 잔액을 그대로 입력하세요.">?</span>
+          <input type="number" id="fWallet" placeholder="USDT" step="any" oninput="onWalletInput()"></label>
         <button class="btn" onclick="addFut()">＋ 포트폴리오에 추가</button>
       </div>
       <div class="fcout" id="fcout"></div>
@@ -513,8 +528,9 @@
     </div>
     <div class="fbar">
       <div class="namebox">A1</div><div class="fx"><i>fx</i></div>
-      <div class="content" id="fbrief">=LIQ(ISOLATED) · 청산은 마크가격 기준 · 펀딩 8h · 추정치</div>
+      <div class="content" id="fbrief">=LIQ() · 청산은 마크가격 기준 · 펀딩 8h · 추정치</div>
     </div>
+    <div class="fcrossbar" id="fcrossbar"></div>
     <div class="sheetwrap futwrap">
       <table id="futGrid">
         <tr class="colhdr" id="futColhdr"></tr>
@@ -1247,6 +1263,8 @@ const FUTLS="pf_fut_v1";
 let futPos=JSON.parse(localStorage.getItem(FUTLS)||"[]");
 let futQuotes={};                 // sym -> {mark,funding,nextFunding}
 let futSide="LONG", _lastFSym="";
+let futMarginMode="ISO";                                  // 계산기 마진 모드
+let crossWallet=+(localStorage.getItem("pf_cross_wallet")||0);  // 교차 지갑 총잔액
 const FUT_MMR={BTCUSDT:0.4,ETHUSDT:0.5,SOLUSDT:0.5,BNBUSDT:0.5,XRPUSDT:0.5,
   DOGEUSDT:1.0,ADAUSDT:1.0,AVAXUSDT:1.0,LINKUSDT:1.0,SUIUSDT:1.0,TRXUSDT:1.0,PEPEUSDT:1.0};
 const FCOLS=["","심볼 / 회차","방향","배율","진입가","수량","증거금(USDT)","명목가(USDT)",
@@ -1294,6 +1312,21 @@ function useMark(){
   if(q){ document.getElementById("fEntry").value=q.mark; calcFut(); }
   else alert("마크가 로딩 중입니다. 잠시 후 다시 눌러주세요.");
 }
+/* 마진 모드 격리/교차 */
+function setMarginMode(m){
+  futMarginMode=m;
+  document.getElementById("fIso").classList.toggle("on",m==="ISO");
+  document.getElementById("fCross").classList.toggle("on",m==="CROSS");
+  document.getElementById("fWalletWrap").style.display=m==="CROSS"?"":"none";
+  if(m==="CROSS"&&crossWallet>0) document.getElementById("fWallet").value=crossWallet;
+  calcFut();
+}
+function onWalletInput(){
+  crossWallet=+document.getElementById("fWallet").value||0;
+  try{ localStorage.setItem("pf_cross_wallet",String(crossWallet)); }catch(e){}
+  calcFut();
+  if(curTab==="fut") renderFut();
+}
 /* 계산기 입력 → 산출값 도출 */
 function readCalc(){
   const sym=document.getElementById("fSym").value.trim().toUpperCase();
@@ -1306,7 +1339,7 @@ function readCalc(){
   if(mode==="margin"){ margin=amt; notional=margin*lev; qty=entry>0?notional/entry:0; }
   else if(mode==="qty"){ qty=amt; notional=qty*entry; margin=notional/lev; }
   else { notional=amt; margin=notional/lev; qty=entry>0?notional/entry:0; }
-  return {sym,side:futSide,lev,entry,mmr,notional,margin,qty};
+  return {sym,side:futSide,lev,entry,mmr,notional,margin,qty,marginMode:futMarginMode};
 }
 function calcFut(){
   const c=readCalc();
@@ -1319,7 +1352,9 @@ function calcFut(){
   }
   const q=futQuotes[c.sym];
   const mark=q?q.mark:null;
-  const liq=liqPrice(c.side,c.entry,c.qty,c.margin,c.mmr);
+  const isCross=c.marginMode==="CROSS";
+  const liqBacking=isCross? crossWallet : c.margin;   // 청산 공식에 들어갈 담보
+  const liq=(isCross&&crossWallet<=0)? null : liqPrice(c.side,c.entry,c.qty,liqBacking,c.mmr);
   const upnl=(mark&&c.entry>0)? (c.side==="LONG"?(mark-c.entry):(c.entry-mark))*c.qty : null;
   const roe=(upnl!=null&&c.margin>0)? upnl/c.margin*100 : null;
   const dist=(mark&&liq)? (c.side==="LONG"?(mark-liq)/mark:(liq-mark)/mark)*100 : null;
@@ -1337,9 +1372,11 @@ function calcFut(){
     return;
   }
   out.innerHTML=
+    card("마진모드",isCross?"교차":"격리")+
     card("명목가",fmtU(c.notional,0)+" U")+
     card("증거금",fmtU(c.margin,2)+" U")+
-    card("청산가",fmtU(liq,liq<10?6:2),"liq")+
+    (isCross?card("지갑 총잔액",crossWallet>0?fmtU(crossWallet,2)+" U":"입력 필요",crossWallet>0?"":"warn"):"")+
+    card("청산가",liq!=null?fmtU(liq,liq<10?6:2):"지갑잔액 입력",liq!=null?"liq":"warn")+
     card("청산까지",dist!=null?(dist>=0?"":"⚠ ")+fmtU(Math.abs(dist),2)+"%":"-",dist!=null&&dist<8?"warn":"")+
     card("마크가",mark!=null?fmtU(mark,mark<10?6:2):"로딩…")+
     card("미실현손익",upnl!=null?(upnl>=0?"+":"")+fmtU(upnl,2)+" U":"-",upnl!=null&&upnl<0?"warn":"")+
@@ -1351,8 +1388,9 @@ function calcFut(){
 function addFut(){
   const c=readCalc();
   if(!c.sym||!(c.entry>0)||!(c.qty>0)){ alert("심볼·진입가·증거금(또는 수량)을 입력하세요."); return; }
+  if(c.marginMode==="CROSS"&&!(crossWallet>0)){ alert("교차 모드는 ‘지갑 총잔액’을 먼저 입력하세요."); return; }
   futPos.push({id:Date.now()+Math.random(), sym:c.sym, side:c.side, lev:c.lev,
-    entry:c.entry, qty:c.qty, mmr:c.mmr, ts:Date.now()});
+    entry:c.entry, qty:c.qty, mmr:c.mmr, mode:c.marginMode, ts:Date.now()});
   localStorage.setItem(FUTLS,JSON.stringify(futPos));
   document.getElementById("fEntry").value=document.getElementById("fAmt").value="";
   futRefresh(); calcDef();
@@ -1375,7 +1413,7 @@ async function loadFutSymbols(){
         syms.map(s=>`<option>${s}</option>`).join("");
       _futSymsLoaded=true;
       const fb=document.getElementById("fbrief");
-      if(fb) fb.textContent=`=LIQ(ISOLATED) · 바이낸스 USDT-M ${syms.length}종목 로드(밈 제외) · 청산은 마크가 기준 · 추정치`;
+      if(fb) fb.textContent=`=LIQ() · 바이낸스 USDT-M ${syms.length}종목(밈 제외) · 격리/교차 · 청산은 마크가 기준 · 추정치`;
     }
   }catch(e){}
 }
@@ -1408,18 +1446,26 @@ function renderFut(){
   }
   const groups={};
   futPos.forEach(p=>{ const k=p.sym+"|"+p.side; (groups[k]=groups[k]||[]).push(p); });
+  const dgAll=defGroups();
   let rn=1;
   for(const key of Object.keys(groups)){
     const g=groups[key], [gsym,gside]=key.split("|");
+    const dg=dgAll[key], isCross=dg&&dg.mode==="CROSS";
     const q=futQuotes[gsym], mark=q?q.mark:null;
     const sc=gside==="LONG"?"up":"down";
+    // 교차 그룹 청산가 (지갑 담보 기준)
+    const grpLiq=isCross
+      ? (crossWallet>0? liqPrice(gside,dg.E,dg.Q,dg.liqM,dg.mmr) : null)
+      : null;
     tb.insertAdjacentHTML("beforeend",`<tr class="grp"><td class="rownum">${rn++}</td>
       <td colspan="${FCOLS.length-2}">▣ ${gsym} <span class="${sc}" style="color:#fff">${gside==="LONG"?"롱 LONG":"숏 SHORT"}</span>
+      <span style="background:rgba(255,255,255,.22);padding:0 6px;border-radius:8px;font-size:8.5pt">${isCross?"교차":"격리"}</span>
       · 마크가 ${mark!=null?fmtU(mark,mark<10?6:2):"로딩…"}${q?` · 펀딩 ${(q.funding*100).toFixed(4)}%`:""}</td><td></td></tr>`);
     let sQ=0,sM=0,sN=0,sEntryW=0;
     g.forEach((p,i)=>{
       const notional=p.entry*p.qty, margin=notional/p.lev;
-      const liq=liqPrice(p.side,p.entry,p.qty,margin,p.mmr);
+      // 격리=개별 청산 / 교차=그룹 청산가 공유
+      const liq=isCross? grpLiq : liqPrice(p.side,p.entry,p.qty,margin,p.mmr);
       const upnl=(mark)? (p.side==="LONG"?(mark-p.entry):(p.entry-mark))*p.qty : null;
       const roe=(upnl!=null&&margin>0)? upnl/margin*100 : null;
       const dist=(mark&&liq)? (p.side==="LONG"?(mark-liq)/mark:(liq-mark)/mark)*100 : null;
@@ -1437,7 +1483,7 @@ function renderFut(){
         <td class="num">${fmtU(margin,2)}</td>
         <td class="num">${fmtU(notional,0)}</td>
         <td class="num">${mark!=null?fmtU(mark,mark<10?6:2):"-"}</td>
-        <td class="num" style="color:var(--down);font-weight:600">${fmtU(liq,liq&&liq<10?6:2)}</td>
+        <td class="num" style="color:var(--down);font-weight:600">${liq!=null?fmtU(liq,liq<10?6:2):(isCross?"지갑?":"-")}</td>
         <td class="num ${dist!=null&&dist<8?'down':''}">${dist!=null?(dist<0?"⚠ ":"")+fmtU(Math.abs(dist),2)+"%":"-"}</td>
         <td class="num ${upnl>=0?'up':'down'}">${upnl!=null?(upnl>=0?"+":"")+fmtU(upnl,2):"-"}</td>
         <td class="num ${roe>=0?'up':'down'}">${roe!=null?(roe>=0?"+":"")+fmtU(roe,1)+"%":"-"}</td>
@@ -1445,32 +1491,55 @@ function renderFut(){
         <td style="text-align:center"><button class="delbtn" onclick="delFut(${p.id})">✕</button></td>
       </tr>`);
     });
-    // 합산행: 병합 격리 포지션 (평단=수량가중, 합산 청산가)
+    // 합산행: 수량가중 평단 · 합산 청산가 (격리=합산증거금 / 교차=지갑담보)
     const cE=sQ?sEntryW/sQ:0;
-    const cLiq=liqPrice(gside,cE,sQ,sM,g[0].mmr);
+    const cLiq=isCross? grpLiq : liqPrice(gside,cE,sQ,sM,g[0].mmr);
     const cUpnl=(mark)? (gside==="LONG"?(mark-cE):(cE-mark))*sQ : null;
     const cRoe=(cUpnl!=null&&sM)? cUpnl/sM*100 : null;
     const cDist=(mark&&cLiq)? (gside==="LONG"?(mark-cLiq)/mark:(cLiq-mark)/mark)*100 : null;
     totM+=sM; totN+=sN;
-    tb.insertAdjacentHTML("beforeend",`<tr class="sum" title="병합 격리 포지션 — 수량가중 평단·합산 청산가">
+    tb.insertAdjacentHTML("beforeend",`<tr class="sum" title="${isCross?'교차 — 지갑 담보 기준 청산가':'병합 격리 — 수량가중 평단·합산 청산가'}">
       <td class="rownum">${rn++}</td>
-      <td>∑ 합산</td><td>${gside==="LONG"?"롱":"숏"}</td>
+      <td>∑ 합산 ${isCross?'<span style="font-weight:400;color:var(--muted)">(교차)</span>':''}</td><td>${gside==="LONG"?"롱":"숏"}</td>
       <td class="num">${sM?fmtU(sN/sM,1):"-"}x</td>
       <td class="num">${fmtU(cE,cE<10?6:2)}</td>
       <td class="num">${fmtU(sQ,sQ<1?4:3)}</td>
       <td class="num">${fmtU(sM,2)}</td>
       <td class="num">${fmtU(sN,0)}</td>
       <td class="num">${mark!=null?fmtU(mark,mark<10?6:2):"-"}</td>
-      <td class="num" style="color:var(--down)">${fmtU(cLiq,cLiq&&cLiq<10?6:2)}</td>
+      <td class="num" style="color:var(--down)">${cLiq!=null?fmtU(cLiq,cLiq<10?6:2):(isCross?"지갑?":"-")}</td>
       <td class="num ${cDist!=null&&cDist<8?'down':''}">${cDist!=null?(cDist<0?"⚠ ":"")+fmtU(Math.abs(cDist),2)+"%":"-"}</td>
       <td class="num ${cUpnl>=0?'up':'down'}">${cUpnl!=null?(cUpnl>=0?"+":"")+fmtU(cUpnl,2):"-"}</td>
       <td class="num ${cRoe>=0?'up':'down'}">${cRoe!=null?(cRoe>=0?"+":"")+fmtU(cRoe,1)+"%":"-"}</td>
       <td class="num">-</td><td></td></tr>`);
   }
   futStat(totM,totN,totP);
+  renderCrossBar(dgAll);
   fillGrid(tb,FCOLS.length,document.querySelector(".futwrap"));
   fillDefSelect();
   if(!document.getElementById("defNow")) calcDef(); else defUpdate();
+}
+/* 교차 계좌 전체 청산선 요약 */
+function renderCrossBar(dgAll){
+  const bar=document.getElementById("fcrossbar");
+  const cross=Object.values(dgAll||defGroups()).filter(g=>g.mode==="CROSS");
+  if(!cross.length){ bar.classList.remove("on"); bar.innerHTML=""; return; }
+  bar.classList.add("on");
+  if(!(crossWallet>0)){
+    bar.innerHTML=`⚠️ 교차 포지션이 있습니다 — 계산기에서 <b>지갑 총잔액</b>을 입력하세요.`;
+    return;
+  }
+  let upnl=0,mm=0;
+  cross.forEach(g=>{ upnl+=g.upnl||0; mm+=g.mm||0; });
+  const equity=crossWallet+upnl;          // 계좌 평가금
+  const ratio=equity>0? mm/equity*100 : 999;  // 마진비율 (100%면 청산)
+  const buffer=equity-mm;                 // 청산까지 손실 여력
+  const cls=ratio>=80?"mr-bad":"mr-ok";
+  bar.innerHTML=`🏦 <b>교차 계좌 전체</b> · 포지션 ${cross.length} · `
+    +`지갑 <b>${fmtU(crossWallet,2)}</b> · 평가금 <b>${fmtU(equity,2)}</b> · `
+    +`유지증거금 <b>${fmtU(mm,2)}</b> · 마진비율 <b class="${cls}">${fmtU(ratio,1)}%</b> `
+    +`<span style="color:var(--muted)">(100%면 계좌 청산)</span> · `
+    +`청산까지 여력 <b class="${buffer>0?'mr-ok':'mr-bad'}">${fmtU(buffer,2)} U</b>`;
 }
 function futStat(m,n,p){
   document.getElementById("fst-count").textContent=`${futPos.length} 포지션`;
@@ -1492,8 +1561,25 @@ function defGroups(){
     let Q=0,M=0,EW=0;
     arr.forEach(p=>{ const n=p.entry*p.qty; Q+=p.qty; M+=n/p.lev; EW+=p.entry*p.qty; });
     const E=Q?EW/Q:0, notional=E*Q;
-    out[k]={sym,side,E,Q,M,mmr:arr[0].mmr,notional,effLev:M?notional/M:0};
+    const mode=arr.some(p=>p.mode==="CROSS")?"CROSS":"ISO";
+    out[k]={sym,side,E,Q,M,mmr:arr[0].mmr,notional,effLev:M?notional/M:0,mode};
   }
+  // 교차 그룹: 현재 마크 기준 uPnL·유지증거금 산출
+  const crossKeys=Object.keys(out).filter(k=>out[k].mode==="CROSS");
+  crossKeys.forEach(k=>{
+    const o=out[k], q=futQuotes[o.sym], mk=q?q.mark:null;
+    o.upnl=mk?(o.side==="LONG"?(mk-o.E):(o.E-mk))*o.Q:0;
+    o.mm=mk?mk*o.Q*o.mmr:0;
+  });
+  // 청산 공식에 들어갈 담보(liqM): 격리=자기 증거금 / 교차=지갑+다른 교차 손익버퍼
+  const W=crossWallet||0;
+  Object.keys(out).forEach(k=>{
+    const o=out[k];
+    if(o.mode!=="CROSS"){ o.liqM=o.M; return; }
+    let others=0;
+    crossKeys.forEach(k2=>{ if(k2!==k) others+=(out[k2].upnl-out[k2].mm); });
+    o.liqM=W+others;
+  });
   return out;
 }
 /* 청산가가 목표 T가 되게 하는 데 필요한 총 증거금 */
@@ -1519,11 +1605,17 @@ function calcDef(){
   const g=defGroups()[_defKey];
   const body=document.getElementById("defBody");
   if(!g){ body.innerHTML="포지션을 <b>＋ 포트폴리오에 추가</b>하면 여기서 청산 방어를 시뮬레이션할 수 있습니다."; return; }
-  const maxM=Math.max(g.M*4,50), maxN=Math.max(g.M*5,100);
+  const isCross=g.mode==="CROSS";
+  const LM=Math.max(g.liqM||0,0);
+  const maxM=Math.max(LM*4,g.M*4,50), maxN=Math.max(g.M*5,100);
+  const addLabel=isCross?"지갑잔액 추가":"증거금 추가";
+  const addTip=isCross
+    ?"교차 지갑(담보)에 돈을 더 넣어요. 코인·평단은 그대로, 청산가만 멀어집니다."
+    :"내 보증금만 더 넣어요. 코인은 안 사고 평단도 그대로. 청산가만 멀어져 더 안전해집니다.";
   body.innerHTML=`
     <div class="fdnow" id="defNow"></div>
     <div class="fdrow">
-      <label>증거금 추가<span class="hlp" data-tip="내 보증금만 더 넣어요. 코인은 안 사고 평단도 그대로. 청산가만 멀어져 더 안전해집니다.">?</span></label>
+      <label>${addLabel}<span class="hlp" data-tip="${addTip}">?</span></label>
       <input type="range" id="defMargin" min="0" max="${maxM.toFixed(2)}" step="${(maxM/500).toFixed(4)}" value="0" oninput="defUpdate()">
       <span class="fdamt" id="defMarginV">+0 U</span>
       <span class="fdarrow">→ 청산가</span> <span class="fdres" id="defMarginLiq">-</span>
@@ -1577,31 +1669,50 @@ function toggleGuide(){
 /* 슬라이더/입력 변경 시 결과만 갱신 (라이브) */
 function defUpdate(){
   const g=defGroups()[_defKey]; if(!g) return;
+  const isCross=g.mode==="CROSS";
   const q=futQuotes[g.sym], mark=q?q.mark:null;
   const dp=v=>v!=null&&v<10?6:2;
-  const liqNow=liqPrice(g.side,g.E,g.Q,g.M,g.mmr);
+  const LM=g.liqM;                       // 청산 공식에 들어갈 담보
+  const unit=isCross?"지갑":"증거금";
+  const dcaLM=isCross?0:1;               // 추매가 담보에 더해지는지(격리만)
+  // 교차인데 지갑 미입력 → 안내
+  if(isCross && !(crossWallet>0)){
+    const now=document.getElementById("defNow");
+    if(now) now.innerHTML=`<span class="warn2">⚠️ 교차 포지션 — 계산기에서 ‘지갑 총잔액’을 먼저 입력하세요.</span>`;
+    ["defMarginLiq","defMarginV","defDcaE","defDcaLiq","defDcaV"].forEach(id=>{
+      const e=document.getElementById(id); if(e) e.textContent="-"; });
+    const md=document.getElementById("defMarginDist"); if(md) md.textContent="";
+    const tab=document.getElementById("defTab"); if(tab) tab.innerHTML="";
+    const plan=document.getElementById("defPlan");
+    if(plan) plan.innerHTML="지갑 총잔액을 입력하면 교차 청산 방어를 계산해 드려요.";
+    return;
+  }
+  const liqNow=liqPrice(g.side,g.E,g.Q,LM,g.mmr);
   const distNow=(mark&&liqNow)?(g.side==="LONG"?(mark-liqNow)/mark:(liqNow-mark)/mark)*100:null;
   const now=document.getElementById("defNow");
   if(now) now.innerHTML=`현재 · 마크가 <b>${mark!=null?fmtU(mark,dp(mark)):"로딩…"}</b>`
     +` · 청산가 <b style="color:var(--down)">${fmtU(liqNow,dp(liqNow))}</b>`
     +` · 청산거리 <b>${distNow!=null?fmtU(Math.abs(distNow),2)+"%":"-"}</b>`
-    +` · 증거금 <b>${fmtU(g.M,2)} U</b> · 실효배율<span class="hlp" data-tip="여러 번 나눠 산 걸 모두 합쳤을 때의 평균 배율. = 전체 명목가 ÷ 전체 증거금.">?</span> <b>${fmtU(g.effLev,1)}x</b>`;
-  // 증거금 추가
+    +(isCross
+       ?` · 지갑담보<span class="hlp" data-tip="교차 청산가를 받쳐주는 돈 = 지갑 총잔액 + 다른 교차 포지션의 손익 버퍼.">?</span> <b>${fmtU(LM,2)} U</b>`
+       :` · 증거금 <b>${fmtU(g.M,2)} U</b>`)
+    +` · 실효배율<span class="hlp" data-tip="여러 번 나눠 산 걸 모두 합쳤을 때의 평균 배율. = 전체 명목가 ÷ 전체 증거금.">?</span> <b>${fmtU(g.effLev,1)}x</b>`;
+  // 증거금/지갑 추가
   const addM=+(document.getElementById("defMargin")||{}).value||0;
-  const liqM=liqPrice(g.side,g.E,g.Q,g.M+addM,g.mmr);
-  const distM=(mark&&liqM)?(g.side==="LONG"?(mark-liqM)/mark:(liqM-mark)/mark)*100:null;
+  const liqM2=liqPrice(g.side,g.E,g.Q,LM+addM,g.mmr);
+  const distM=(mark&&liqM2)?(g.side==="LONG"?(mark-liqM2)/mark:(liqM2-mark)/mark)*100:null;
   const mv=document.getElementById("defMarginV"); if(mv) mv.textContent="+"+fmtU(addM,2)+" U";
-  const ml=document.getElementById("defMarginLiq"); if(ml){ ml.textContent=fmtU(liqM,dp(liqM)); ml.style.color="var(--down)"; }
+  const ml=document.getElementById("defMarginLiq"); if(ml){ ml.textContent=fmtU(liqM2,dp(liqM2)); ml.style.color="var(--down)"; }
   const md=document.getElementById("defMarginDist");
   if(md) md.textContent=distM!=null?`(거리 ${fmtU(Math.abs(distM),2)}%)`:"";
-  // 추매 (지정 가격대, 증거금 기준 — 실효배율 유지)
-  const dca=+(document.getElementById("defDca")||{}).value||0;   // 증거금(내 돈)
+  // 추매 (지정 가격대, 증거금 기준 — 격리는 담보↑, 교차는 지갑 불변)
+  const dca=+(document.getElementById("defDca")||{}).value||0;
   const dcaP=+(document.getElementById("defDcaPrice")||{}).value||mark||0;
   let dE=g.E,dLiq=liqNow;
   if(dcaP>0&&dca>0){
-    const qty=g.effLev*dca/dcaP, nQ=g.Q+qty;       // 증거금×배율 = 매수대금
-    const nE=(g.E*g.Q+dcaP*qty)/nQ, nM=g.M+dca;
-    dE=nE; dLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
+    const qty=g.effLev*dca/dcaP, nQ=g.Q+qty;
+    const nE=(g.E*g.Q+dcaP*qty)/nQ, nLM=LM+dcaLM*dca;
+    dE=nE; dLiq=liqPrice(g.side,nE,nQ,nLM,g.mmr);
   }
   const dv=document.getElementById("defDcaV"); if(dv) dv.textContent="증거금 +"+fmtU(dca,2)+" U";
   const de=document.getElementById("defDcaE"); if(de) de.textContent=fmtU(dE,dp(dE));
@@ -1611,9 +1722,9 @@ function defUpdate(){
   if(tab&&mark){
     tab.innerHTML=[10,20,30,50].map(x=>{
       const T=g.side==="LONG"?mark*(1-x/100):mark*(1+x/100);
-      const extra=reqMargin(g.side,g.E,g.Q,g.mmr,T)-g.M;
+      const extra=reqMargin(g.side,g.E,g.Q,g.mmr,T)-LM;
       const ok=extra<=0.0001;
-      return `<span class="fdchip ${ok?'ok':'need'}">${g.side==="LONG"?"−":"+"}${x}%<span class="s">${ok?"✓ 안전":"증거금 +"+fmtU(extra,1)+"U"}</span></span>`;
+      return `<span class="fdchip ${ok?'ok':'need'}">${g.side==="LONG"?"−":"+"}${x}%<span class="s">${ok?"✓ 안전":unit+" +"+fmtU(extra,1)+"U"}</span></span>`;
     }).join("");
   } else if(tab){ tab.innerHTML='<span class="fdhint">마크가 로딩 중…</span>'; }
   // ===== 🎯 목표 생존가 — 초보자용 대응 플랜 =====
@@ -1630,47 +1741,45 @@ function defUpdate(){
     } else if(isLong? T>=g.E : T<=g.E){
       plan.innerHTML=`<span class="warn2">⚠️ 목표가는 평단(${pf(g.E)})보다 ${isLong?"낮게":"높게"} 적어주세요.</span>`;
     } else {
-      const need1=reqMargin(g.side,g.E,g.Q,g.mmr,T)-g.M;   // 증거금만
+      const need1=reqMargin(g.side,g.E,g.Q,g.mmr,T)-LM;
       let h=`<b>지금</b>: 가격이 <b style="color:var(--down)">${pf(liqNow)}</b>달러까지 떨어지면 강제 청산돼요. 😱<br>`
-           +`<b>목표</b>: <b>${pf(T)}</b>달러까지 버티기 💪`;
+           +`<b>목표</b>: <b>${pf(T)}</b>달러까지 버티기 💪`
+           +(isCross?` <span style="color:var(--muted)">(교차 — 지갑담보 기준)</span>`:"");
       if(need1<=0.01){
         h+=`<br><br>✅ <b class="big">이미 ${pf(T)}달러까지 안전해요!</b> 아무것도 안 해도 돼요.`;
       } else {
-        // 방법 1 — 증거금만
-        h+=`<br><br><b class="pA">방법 1 · 증거금만 더 넣기</b><br>`
-          +`👉 증거금에 <b class="big">+${pf(need1)}달러</b>를 넣으세요. 추매는 안 해도 끝! ✅`;
-        // 방법 2 — 추매(+증거금)
+        h+=`<br><br><b class="pA">방법 1 · ${unit}만 더 넣기</b><br>`
+          +`👉 ${unit}에 <b class="big">+${pf(need1)}달러</b>를 넣으세요. 추매는 안 해도 끝! ✅`;
         h+=`<br><br><b class="pA">방법 2 · 더 싸게 사두기${P>0?` (${pf(P)}달러에서)`:""}</b><br>`;
         if(P<=0){
           h+=`👉 위 ‘추매할 가격’ 칸에 싸게 살 가격을 적어보세요. (예: ${pf((mark+T)/2)})`;
         } else {
-          const Llim=isLong? P*(1-1/g.effLev)/(1-g.mmr) : P*(1+1/g.effLev)/(1+g.mmr);
+          const Llim=isLong? P*(1-dcaLM/g.effLev)/(1-g.mmr) : P*(1+dcaLM/g.effLev)/(1+g.mmr);
           if(N>0){
-            // N = 추매에 쓸 증거금(내 돈). 매수대금 = N×배율, 코인수 = 매수대금/P
-            const buyVal=N*g.effLev, q=buyVal/P;
-            const nQ=g.Q+q, nE=(g.E*g.Q+P*q)/nQ, nM=g.M+N;
-            const nLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
-            const rem=reqMargin(g.side,nE,nQ,g.mmr,T)-nM;
+            const buyVal=N*g.effLev, qd=buyVal/P;
+            const nQ=g.Q+qd, nE=(g.E*g.Q+P*qd)/nQ, nLM=LM+dcaLM*N;
+            const nLiq=liqPrice(g.side,nE,nQ,nLM,g.mmr);
+            const rem=reqMargin(g.side,nE,nQ,g.mmr,T)-nLM;
             h+=`👉 ${pf(P)}달러에서 <b class="big">증거금 ${pf(N)}달러</b>로 추매<br>`
-              +`&nbsp;&nbsp;&nbsp;(${pf(g.effLev)}배 → 매수대금 ${pf(buyVal)}달러어치, 코인 약 ${fmtU(q,q<1?4:2)}개)<br>`
-              +`&nbsp;&nbsp;&nbsp;평균단가 ${pf(g.E)} → <b>${pf(nE)}</b>, 청산가 ${pf(liqNow)} → <b style="color:var(--down)">${pf(nLiq)}</b>로 내려가요.<br>`;
-            if(rem<=0.01) h+=`&nbsp;&nbsp;&nbsp;🎉 <b class="big">이것만으로 목표 달성!</b> 증거금은 더 안 넣어도 돼요.`;
-            else h+=`&nbsp;&nbsp;&nbsp;아직 목표엔 모자라요 → 증거금 <b class="big">+${pf(rem)}달러</b>만 더 넣으면 완성! ✅`;
+              +`&nbsp;&nbsp;&nbsp;(${pf(g.effLev)}배 → 매수대금 ${pf(buyVal)}달러어치, 코인 약 ${fmtU(qd,qd<1?4:2)}개)<br>`
+              +`&nbsp;&nbsp;&nbsp;평균단가 ${pf(g.E)} → <b>${pf(nE)}</b>, 청산가 ${pf(liqNow)} → <b style="color:var(--down)">${pf(nLiq)}</b>로 ${nLiq<liqNow?"내려가요":"이동해요"}.<br>`
+              +(isCross?`&nbsp;&nbsp;&nbsp;<span style="color:var(--muted)">(교차는 추매해도 지갑담보는 그대로 — 평단 변화만큼만 청산가가 움직여요)</span><br>`:"");
+            if(rem<=0.01) h+=`&nbsp;&nbsp;&nbsp;🎉 <b class="big">이것만으로 목표 달성!</b> ${unit}은 더 안 넣어도 돼요.`;
+            else h+=`&nbsp;&nbsp;&nbsp;아직 목표엔 모자라요 → ${unit} <b class="big">+${pf(rem)}달러</b>만 더 넣으면 완성! ✅`;
           } else {
-            // 추매만으로 목표 도달에 필요한 금액
-            const num=isLong? (g.E*g.Q-g.M-T*k*g.Q) : (g.E*g.Q+g.M-T*k*g.Q);
-            const den=isLong? (T*k-P+P/g.effLev) : (T*k-P-P/g.effLev);
+            const num=isLong? (g.E*g.Q-LM-T*k*g.Q) : (g.E*g.Q+LM-T*k*g.Q);
+            const den=isLong? (T*k-P+dcaLM*P/g.effLev) : (T*k-P-dcaLM*P/g.effLev);
             const qNeed=(Math.abs(den)>1e-9)? num/den : -1;
             const feasible=qNeed>0 && (isLong? T>=Llim-1e-6 : T<=Llim+1e-6);
             if(feasible){
               const marginNeed=P*qNeed/g.effLev;
               h+=`👉 ${pf(P)}달러에서 <b class="big">증거금 ${pf(marginNeed)}달러</b>로 추매하면<br>`
                 +`&nbsp;&nbsp;&nbsp;(매수대금 ${pf(P*qNeed)}달러어치, 코인 약 ${fmtU(qNeed,qNeed<1?4:2)}개)<br>`
-                +`&nbsp;&nbsp;&nbsp;증거금 추가 없이 ${pf(T)}달러까지 버텨요. ✅`;
+                +`&nbsp;&nbsp;&nbsp;${unit} 추가 없이 ${pf(T)}달러까지 버텨요. ✅`;
             } else {
               h+=`<span class="warn2">⚠️ ${pf(P)}달러에 아무리 많이 사도 청산가는 약 <b>${pf(Llim)}</b>달러 밑으로 안 내려가요.</span><br>`
-                +`👉 ${pf(T)}달러까지 버티려면 <b>더 싼 가격</b>에 사거나 <b>증거금</b>을 넣어야 해요.<br>`
-                +`&nbsp;&nbsp;&nbsp;‘추매 증거금’을 적으면 그만큼 샀을 때 증거금을 얼마 더 넣어야 하는지 알려줄게요.`;
+                +`👉 ${pf(T)}달러까지 버티려면 <b>더 싼 가격</b>에 사거나 <b>${unit}</b>을 넣어야 해요.<br>`
+                +`&nbsp;&nbsp;&nbsp;‘추매 증거금’을 적으면 그만큼 샀을 때 ${unit}을 얼마 더 넣어야 하는지 알려줄게요.`;
             }
           }
         }
