@@ -195,6 +195,9 @@
   /* 청산 방어 시뮬레이터 */
   .futdef{margin-top:9px;border-top:2px solid var(--ribbon);padding-top:7px}
   .fdhead{font-size:9.5pt;font-weight:700;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .fdtoggle{cursor:pointer;user-select:none}
+  .fdtoggle:hover{color:var(--ribbon)}
+  .futdef.collapsed .fdbody{display:none}
   .fdhead select{font-family:inherit;font-size:9pt;padding:3px 6px;border:1px solid var(--grid);
     border-radius:3px;background:var(--cell-bg);color:var(--fg);font-weight:400}
   .fdhint{font-size:7.5pt;color:var(--muted);font-weight:400}
@@ -439,10 +442,11 @@
         <button class="btn" onclick="addFut()">＋ 포트폴리오에 추가</button>
       </div>
       <div class="fcout" id="fcout"></div>
-      <div class="futdef">
-        <div class="fdhead">🛟 청산 방어 시뮬레이터
+      <div class="futdef" id="futdef">
+        <div class="fdhead">
+          <span class="fdtoggle" onclick="toggleDef()"><span id="defArrow">▼</span> 🛟 청산 방어 시뮬레이터</span>
           <select id="defSel" onchange="calcDef()"></select>
-          <span class="fdhint">보유 포지션을 골라 추가 증거금·추매를 시뮬레이션</span>
+          <span class="fdhint">보유 포지션을 골라 추가 증거금·추매를 시뮬레이션 (제목 클릭=접기)</span>
         </div>
         <div class="fdbody" id="defBody">포지션을 <b>＋ 포트폴리오에 추가</b>하면 여기서 청산 방어를 시뮬레이션할 수 있습니다.</div>
       </div>
@@ -1439,7 +1443,7 @@ function calcDef(){
   const g=defGroups()[_defKey];
   const body=document.getElementById("defBody");
   if(!g){ body.innerHTML="포지션을 <b>＋ 포트폴리오에 추가</b>하면 여기서 청산 방어를 시뮬레이션할 수 있습니다."; return; }
-  const maxM=Math.max(g.M*4,50), maxN=Math.max(g.notional,50);
+  const maxM=Math.max(g.M*4,50), maxN=Math.max(g.M*5,100);
   body.innerHTML=`
     <div class="fdnow" id="defNow"></div>
     <div class="fdrow">
@@ -1450,7 +1454,7 @@ function calcDef(){
       <span id="defMarginDist" class="fdarrow"></span>
     </div>
     <div class="fdrow">
-      <label>추매 시뮬</label>
+      <label>추매(증거금 기준)</label>
       <input type="number" id="defDcaPrice" placeholder="추매가" step="any" oninput="defUpdate()" title="추매할 가격대 (비우면 현재 마크가)">
       <input type="range" id="defDca" min="0" max="${maxN.toFixed(2)}" step="${(maxN/500).toFixed(4)}" value="0" oninput="defUpdate()">
       <span class="fdamt" id="defDcaV">+0 U</span>
@@ -1469,9 +1473,9 @@ function calcDef(){
       <div class="fdrow">
         <label>↳ 추매할 가격</label>
         <input type="number" id="defPlanPrice" placeholder="예: 50" step="any" oninput="defUpdate()">
-        <label style="min-width:58px">추매 금액</label>
-        <input type="number" id="defPlanAmt" placeholder="달러" step="any" oninput="defUpdate()">
-        <span class="fdhint">싸게 더 살 가격·금액 (선택)</span>
+        <label style="min-width:78px">추매 증거금</label>
+        <input type="number" id="defPlanAmt" placeholder="증거금 달러" step="any" oninput="defUpdate()">
+        <span class="fdhint">추매에 쓸 증거금(내 돈) (선택)</span>
       </div>
       <div class="fdplan" id="defPlan">목표 생존가를 입력하면 쉽게 알려드릴게요.</div>
     </div>`;
@@ -1479,6 +1483,13 @@ function calcDef(){
   const dpEl=document.getElementById("defDcaPrice");
   if(dpEl&&mk) dpEl.value=mk.mark;
   defUpdate();
+}
+/* 청산 방어 패널 접기/펴기 */
+function toggleDef(){
+  const d=document.getElementById("futdef");
+  const on=d.classList.toggle("collapsed");
+  document.getElementById("defArrow").textContent=on?"▶":"▼";
+  try{ localStorage.setItem("pf_def_collapsed",on?"1":""); }catch(e){}
 }
 /* 슬라이더/입력 변경 시 결과만 갱신 (라이브) */
 function defUpdate(){
@@ -1500,16 +1511,16 @@ function defUpdate(){
   const ml=document.getElementById("defMarginLiq"); if(ml){ ml.textContent=fmtU(liqM,dp(liqM)); ml.style.color="var(--down)"; }
   const md=document.getElementById("defMarginDist");
   if(md) md.textContent=distM!=null?`(거리 ${fmtU(Math.abs(distM),2)}%)`:"";
-  // 추매 (지정 가격대에 USDT 투입, 실효배율 유지)
-  const dca=+(document.getElementById("defDca")||{}).value||0;
+  // 추매 (지정 가격대, 증거금 기준 — 실효배율 유지)
+  const dca=+(document.getElementById("defDca")||{}).value||0;   // 증거금(내 돈)
   const dcaP=+(document.getElementById("defDcaPrice")||{}).value||mark||0;
   let dE=g.E,dLiq=liqNow;
   if(dcaP>0&&dca>0){
-    const qty=dca/dcaP, addMg=g.effLev?dca/g.effLev:0;
-    const nQ=g.Q+qty, nE=(g.E*g.Q+dcaP*qty)/nQ, nM=g.M+addMg;
+    const qty=g.effLev*dca/dcaP, nQ=g.Q+qty;       // 증거금×배율 = 매수대금
+    const nE=(g.E*g.Q+dcaP*qty)/nQ, nM=g.M+dca;
     dE=nE; dLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
   }
-  const dv=document.getElementById("defDcaV"); if(dv) dv.textContent="+"+fmtU(dca,2)+" U";
+  const dv=document.getElementById("defDcaV"); if(dv) dv.textContent="증거금 +"+fmtU(dca,2)+" U";
   const de=document.getElementById("defDcaE"); if(de) de.textContent=fmtU(dE,dp(dE));
   const dl=document.getElementById("defDcaLiq"); if(dl){ dl.textContent=fmtU(dLiq,dp(dLiq)); dl.style.color="var(--down)"; }
   // 급락 방어표
@@ -1552,13 +1563,15 @@ function defUpdate(){
         } else {
           const Llim=isLong? P*(1-1/g.effLev)/(1-g.mmr) : P*(1+1/g.effLev)/(1+g.mmr);
           if(N>0){
-            const q=N/P, addMg=g.effLev?N/g.effLev:0;
-            const nQ=g.Q+q, nE=(g.E*g.Q+P*q)/nQ, nM=g.M+addMg;
+            // N = 추매에 쓸 증거금(내 돈). 매수대금 = N×배율, 코인수 = 매수대금/P
+            const buyVal=N*g.effLev, q=buyVal/P;
+            const nQ=g.Q+q, nE=(g.E*g.Q+P*q)/nQ, nM=g.M+N;
             const nLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
             const rem=reqMargin(g.side,nE,nQ,g.mmr,T)-nM;
-            h+=`👉 ${pf(P)}달러에서 <b class="big">${pf(N)}달러어치</b>(코인 약 ${fmtU(q,q<1?4:2)}개)를 사면<br>`
+            h+=`👉 ${pf(P)}달러에서 <b class="big">증거금 ${pf(N)}달러</b>로 추매<br>`
+              +`&nbsp;&nbsp;&nbsp;(${pf(g.effLev)}배 → 매수대금 ${pf(buyVal)}달러어치, 코인 약 ${fmtU(q,q<1?4:2)}개)<br>`
               +`&nbsp;&nbsp;&nbsp;평균단가 ${pf(g.E)} → <b>${pf(nE)}</b>, 청산가 ${pf(liqNow)} → <b style="color:var(--down)">${pf(nLiq)}</b>로 내려가요.<br>`;
-            if(rem<=0.01) h+=`&nbsp;&nbsp;&nbsp;🎉 <b class="big">이것만으로 목표 달성!</b> 증거금은 안 넣어도 돼요.`;
+            if(rem<=0.01) h+=`&nbsp;&nbsp;&nbsp;🎉 <b class="big">이것만으로 목표 달성!</b> 증거금은 더 안 넣어도 돼요.`;
             else h+=`&nbsp;&nbsp;&nbsp;아직 목표엔 모자라요 → 증거금 <b class="big">+${pf(rem)}달러</b>만 더 넣으면 완성! ✅`;
           } else {
             // 추매만으로 목표 도달에 필요한 금액
@@ -1567,12 +1580,14 @@ function defUpdate(){
             const qNeed=(Math.abs(den)>1e-9)? num/den : -1;
             const feasible=qNeed>0 && (isLong? T>=Llim-1e-6 : T<=Llim+1e-6);
             if(feasible){
-              h+=`👉 ${pf(P)}달러에서 <b class="big">${pf(P*qNeed)}달러어치</b>(코인 약 ${fmtU(qNeed,qNeed<1?4:2)}개)만 사면<br>`
+              const marginNeed=P*qNeed/g.effLev;
+              h+=`👉 ${pf(P)}달러에서 <b class="big">증거금 ${pf(marginNeed)}달러</b>로 추매하면<br>`
+                +`&nbsp;&nbsp;&nbsp;(매수대금 ${pf(P*qNeed)}달러어치, 코인 약 ${fmtU(qNeed,qNeed<1?4:2)}개)<br>`
                 +`&nbsp;&nbsp;&nbsp;증거금 추가 없이 ${pf(T)}달러까지 버텨요. ✅`;
             } else {
               h+=`<span class="warn2">⚠️ ${pf(P)}달러에 아무리 많이 사도 청산가는 약 <b>${pf(Llim)}</b>달러 밑으로 안 내려가요.</span><br>`
                 +`👉 ${pf(T)}달러까지 버티려면 <b>더 싼 가격</b>에 사거나 <b>증거금</b>을 넣어야 해요.<br>`
-                +`&nbsp;&nbsp;&nbsp;‘추매 금액’을 적으면 그만큼 샀을 때 증거금을 얼마 더 넣어야 하는지 알려줄게요.`;
+                +`&nbsp;&nbsp;&nbsp;‘추매 증거금’을 적으면 그만큼 샀을 때 증거금을 얼마 더 넣어야 하는지 알려줄게요.`;
             }
           }
         }
@@ -1587,6 +1602,11 @@ refreshAll();
 renderMemo();
 homeRefresh();
 calcFut();
+// 청산 방어 패널 접힘 상태 복원
+try{ if(localStorage.getItem("pf_def_collapsed")){
+  document.getElementById("futdef").classList.add("collapsed");
+  document.getElementById("defArrow").textContent="▶";
+} }catch(e){}
 setInterval(()=>refreshAll(true), 15000);     // 포트폴리오 15초
 setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 15000); // 홈 시세 15초
 setInterval(()=>{ if(curTab==="fut") futRefresh(); }, 15000);   // 선물 15초
