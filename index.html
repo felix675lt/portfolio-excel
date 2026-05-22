@@ -217,6 +217,14 @@
   .fdchip.need{background:#fdeaea;border-color:#e3b3b3}
   body.dark .fdchip.ok{background:#1f3a26;border-color:#2f5a3a}
   body.dark .fdchip.need{background:#3a2222;border-color:#5a3030}
+  .fdgoalbox{margin-top:6px;border:1px solid var(--ribbon);border-radius:6px;padding:7px 9px}
+  .fdplan{margin-top:5px;background:var(--cell-bg);border:1px solid var(--grid);
+    border-radius:5px;padding:9px 12px;font-size:9pt;line-height:1.75}
+  .fdplan b{font-variant-numeric:tabular-nums}
+  .fdplan .pA{color:var(--ribbon);font-weight:700}
+  .fdplan .big{color:var(--up);font-weight:700}
+  .fdplan .warn2{background:#fff0f0;border-radius:4px;padding:1px 5px}
+  body.dark .fdplan .warn2{background:#3a2222}
   #futGrid{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
   #futGrid th,#futGrid td{border:1px solid var(--grid);padding:4px 8px;white-space:nowrap;font-size:10pt}
   #futGrid thead th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;
@@ -1452,10 +1460,20 @@ function calcDef(){
     <div class="fdrow">
       <label>급락 방어</label><span class="fdtab" id="defTab"></span>
     </div>
-    <div class="fdrow">
-      <label>목표 생존가</label>
-      <input type="number" id="defTarget" placeholder="USDT" step="any" oninput="defUpdate()">
-      <span class="fdres" id="defTargetRes" style="font-weight:400">→ 가격을 입력하면 필요 증거금을 알려줍니다</span>
+    <div class="fdgoalbox">
+      <div class="fdrow">
+        <label>🎯 목표 생존가</label>
+        <input type="number" id="defTarget" placeholder="예: 20" step="any" oninput="defUpdate()">
+        <span class="fdhint">이 가격까지 안 잘리고 버티고 싶어요</span>
+      </div>
+      <div class="fdrow">
+        <label>↳ 추매할 가격</label>
+        <input type="number" id="defPlanPrice" placeholder="예: 50" step="any" oninput="defUpdate()">
+        <label style="min-width:58px">추매 금액</label>
+        <input type="number" id="defPlanAmt" placeholder="달러" step="any" oninput="defUpdate()">
+        <span class="fdhint">싸게 더 살 가격·금액 (선택)</span>
+      </div>
+      <div class="fdplan" id="defPlan">목표 생존가를 입력하면 쉽게 알려드릴게요.</div>
     </div>`;
   const mk=futQuotes[g.sym];
   const dpEl=document.getElementById("defDcaPrice");
@@ -1504,21 +1522,63 @@ function defUpdate(){
       return `<span class="fdchip ${ok?'ok':'need'}">${g.side==="LONG"?"−":"+"}${x}%<span class="s">${ok?"✓ 안전":"증거금 +"+fmtU(extra,1)+"U"}</span></span>`;
     }).join("");
   } else if(tab){ tab.innerHTML='<span class="fdhint">마크가 로딩 중…</span>'; }
-  // 목표 생존가 역산
-  const tEl=document.getElementById("defTarget"), res=document.getElementById("defTargetRes");
-  if(tEl&&res){
-    const T=+tEl.value||0;
-    if(T>0){
-      const extra=reqMargin(g.side,g.E,g.Q,g.mmr,T)-g.M;
-      const valid=g.side==="LONG"?T<g.E:T>g.E;
-      if(!valid) res.innerHTML=`<span style="color:var(--muted)">${g.side==="LONG"?"진입가보다 낮은":"진입가보다 높은"} 가격을 입력하세요</span>`;
-      else if(extra<=0.0001) res.innerHTML=`<b style="color:var(--up)">✓ 이미 ${fmtU(T,dp(T))}까지 안전</b> (추가 불필요)`;
-      else{
-        const qtyNeed=mark?extra*g.effLev/mark:null;
-        res.innerHTML=`<b>증거금 +${fmtU(extra,2)} U</b> 추가하면 ${fmtU(T,dp(T))}까지 버팁니다`
-          +(qtyNeed?` <span style="color:var(--muted)">· 또는 마크가 추매 ${fmtU(extra*g.effLev,1)}U어치</span>`:"");
+  // ===== 🎯 목표 생존가 — 초보자용 대응 플랜 =====
+  const plan=document.getElementById("defPlan");
+  if(plan){
+    const pf=v=>fmtU(v,dp(v));
+    const T=+(document.getElementById("defTarget")||{}).value||0;
+    const P=+(document.getElementById("defPlanPrice")||{}).value||0;
+    const N=+(document.getElementById("defPlanAmt")||{}).value||0;
+    const isLong=g.side==="LONG";
+    const k=isLong?(1-g.mmr):(1+g.mmr);
+    if(T<=0){
+      plan.innerHTML="목표 생존가를 입력하면 어떻게 대응할지 쉽게 알려드릴게요. 🙂";
+    } else if(isLong? T>=g.E : T<=g.E){
+      plan.innerHTML=`<span class="warn2">⚠️ 목표가는 평단(${pf(g.E)})보다 ${isLong?"낮게":"높게"} 적어주세요.</span>`;
+    } else {
+      const need1=reqMargin(g.side,g.E,g.Q,g.mmr,T)-g.M;   // 증거금만
+      let h=`<b>지금</b>: 가격이 <b style="color:var(--down)">${pf(liqNow)}</b>달러까지 떨어지면 강제 청산돼요. 😱<br>`
+           +`<b>목표</b>: <b>${pf(T)}</b>달러까지 버티기 💪`;
+      if(need1<=0.01){
+        h+=`<br><br>✅ <b class="big">이미 ${pf(T)}달러까지 안전해요!</b> 아무것도 안 해도 돼요.`;
+      } else {
+        // 방법 1 — 증거금만
+        h+=`<br><br><b class="pA">방법 1 · 증거금만 더 넣기</b><br>`
+          +`👉 증거금에 <b class="big">+${pf(need1)}달러</b>를 넣으세요. 추매는 안 해도 끝! ✅`;
+        // 방법 2 — 추매(+증거금)
+        h+=`<br><br><b class="pA">방법 2 · 더 싸게 사두기${P>0?` (${pf(P)}달러에서)`:""}</b><br>`;
+        if(P<=0){
+          h+=`👉 위 ‘추매할 가격’ 칸에 싸게 살 가격을 적어보세요. (예: ${pf((mark+T)/2)})`;
+        } else {
+          const Llim=isLong? P*(1-1/g.effLev)/(1-g.mmr) : P*(1+1/g.effLev)/(1+g.mmr);
+          if(N>0){
+            const q=N/P, addMg=g.effLev?N/g.effLev:0;
+            const nQ=g.Q+q, nE=(g.E*g.Q+P*q)/nQ, nM=g.M+addMg;
+            const nLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
+            const rem=reqMargin(g.side,nE,nQ,g.mmr,T)-nM;
+            h+=`👉 ${pf(P)}달러에서 <b class="big">${pf(N)}달러어치</b>(코인 약 ${fmtU(q,q<1?4:2)}개)를 사면<br>`
+              +`&nbsp;&nbsp;&nbsp;평균단가 ${pf(g.E)} → <b>${pf(nE)}</b>, 청산가 ${pf(liqNow)} → <b style="color:var(--down)">${pf(nLiq)}</b>로 내려가요.<br>`;
+            if(rem<=0.01) h+=`&nbsp;&nbsp;&nbsp;🎉 <b class="big">이것만으로 목표 달성!</b> 증거금은 안 넣어도 돼요.`;
+            else h+=`&nbsp;&nbsp;&nbsp;아직 목표엔 모자라요 → 증거금 <b class="big">+${pf(rem)}달러</b>만 더 넣으면 완성! ✅`;
+          } else {
+            // 추매만으로 목표 도달에 필요한 금액
+            const num=isLong? (g.E*g.Q-g.M-T*k*g.Q) : (g.E*g.Q+g.M-T*k*g.Q);
+            const den=isLong? (T*k-P+P/g.effLev) : (T*k-P-P/g.effLev);
+            const qNeed=(Math.abs(den)>1e-9)? num/den : -1;
+            const feasible=qNeed>0 && (isLong? T>=Llim-1e-6 : T<=Llim+1e-6);
+            if(feasible){
+              h+=`👉 ${pf(P)}달러에서 <b class="big">${pf(P*qNeed)}달러어치</b>(코인 약 ${fmtU(qNeed,qNeed<1?4:2)}개)만 사면<br>`
+                +`&nbsp;&nbsp;&nbsp;증거금 추가 없이 ${pf(T)}달러까지 버텨요. ✅`;
+            } else {
+              h+=`<span class="warn2">⚠️ ${pf(P)}달러에 아무리 많이 사도 청산가는 약 <b>${pf(Llim)}</b>달러 밑으로 안 내려가요.</span><br>`
+                +`👉 ${pf(T)}달러까지 버티려면 <b>더 싼 가격</b>에 사거나 <b>증거금</b>을 넣어야 해요.<br>`
+                +`&nbsp;&nbsp;&nbsp;‘추매 금액’을 적으면 그만큼 샀을 때 증거금을 얼마 더 넣어야 하는지 알려줄게요.`;
+            }
+          }
+        }
       }
-    } else res.innerHTML=`<span style="color:var(--muted)">→ 가격을 입력하면 필요 증거금을 알려줍니다</span>`;
+      plan.innerHTML=h;
+    }
   }
 }
 
