@@ -198,6 +198,29 @@
   .fdtoggle{cursor:pointer;user-select:none}
   .fdtoggle:hover{color:var(--ribbon)}
   .futdef.collapsed .fdbody{display:none}
+  /* 용어 도움말 물음표 */
+  .hlp{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;
+    border-radius:50%;background:var(--muted);color:#fff;font-size:8px;font-weight:700;
+    cursor:help;margin-left:3px;position:relative;vertical-align:middle;font-style:normal}
+  .hlp::after{content:attr(data-tip);position:absolute;left:0;top:165%;
+    background:#222;color:#fff;font-size:8.5pt;font-weight:400;padding:7px 10px;border-radius:5px;
+    width:248px;line-height:1.55;white-space:normal;text-align:left;
+    opacity:0;visibility:hidden;transition:opacity .12s;z-index:200;pointer-events:none;
+    box-shadow:0 5px 16px rgba(0,0,0,.32)}
+  .hlp:hover::after{opacity:1;visibility:visible}
+  /* 초보 가이드 */
+  .futguide{margin-top:9px;border-top:2px solid var(--ribbon);padding-top:7px}
+  .fgtoggle{cursor:pointer;user-select:none;font-size:9.5pt;font-weight:700}
+  .fgtoggle:hover{color:var(--ribbon)}
+  .futguide.collapsed .fgbody{display:none}
+  .fgbody{margin-top:7px;font-size:9pt;line-height:1.7}
+  .fgbox{background:var(--cell-bg);border:1px solid var(--grid);border-radius:6px;
+    padding:9px 12px;margin:7px 0}
+  .fgtable{border-collapse:collapse;width:100%;font-size:8.5pt;margin:7px 0}
+  .fgtable th,.fgtable td{border:1px solid var(--grid);padding:5px 9px;text-align:center}
+  .fgtable th{background:var(--ribbon);color:#fff}
+  .fgtable td:first-child{background:var(--band);font-weight:600;text-align:left}
+  .fgbody b.k{color:var(--ribbon)}
   .fdhead select{font-family:inherit;font-size:9pt;padding:3px 6px;border:1px solid var(--grid);
     border-radius:3px;background:var(--cell-bg);color:var(--fg);font-weight:400}
   .fdhint{font-size:7.5pt;color:var(--muted);font-weight:400}
@@ -421,16 +444,16 @@
             <option>SUIUSDT</option><option>TRXUSDT</option><option>PEPEUSDT</option>
           </datalist>
         </label>
-        <label>방향
+        <label>방향<span class="hlp" data-tip="롱=오르면 이익, 숏=내리면 이익. 이 앱은 격리 마진(이 포지션에 넣은 증거금만 잃음) 기준입니다.">?</span>
           <span class="sidetog">
             <button type="button" id="fLong" class="on" onclick="setSide('LONG')">롱</button>
             <button type="button" id="fShort" onclick="setSide('SHORT')">숏</button>
           </span>
         </label>
-        <label>배율<input type="number" id="fLev" value="10" min="1" max="125" step="1" oninput="calcFut()"><span class="suf">x</span></label>
-        <label>진입가<input type="number" id="fEntry" placeholder="USDT" step="any" oninput="calcFut()">
+        <label>배율<span class="hlp" data-tip="레버리지. 내 돈(증거금)의 몇 배로 크게 사는지. 10배면 100달러로 1,000달러어치를 사는 것. 클수록 수익도 손실도 커지고 청산가가 가까워져요.">?</span><input type="number" id="fLev" value="10" min="1" max="125" step="1" oninput="calcFut()"><span class="suf">x</span></label>
+        <label>진입가<span class="hlp" data-tip="내가 산 가격. 여러 번 나눠 사면 수량으로 평균낸 값(평단)이 돼요.">?</span><input type="number" id="fEntry" placeholder="USDT" step="any" oninput="calcFut()">
           <button type="button" class="mini" onclick="useMark()" title="현재 마크가 채우기">마크가</button></label>
-        <label>입력
+        <label>입력<span class="hlp" data-tip="증거금=실제 맡기는 내 돈 / 수량=코인 개수 / 명목가=포지션 전체 크기(=가격×수량=증거금×배율). 셋 중 편한 것으로 입력하세요.">?</span>
           <select id="fMode" onchange="calcFut()">
             <option value="margin">증거금(USDT)</option>
             <option value="qty">수량(코인)</option>
@@ -438,7 +461,7 @@
           </select>
           <input type="number" id="fAmt" placeholder="값" step="any" oninput="calcFut()">
         </label>
-        <label>MMR<input type="number" id="fMmr" value="0.4" step="0.05" oninput="calcFut()"><span class="suf">%</span></label>
+        <label>MMR<span class="hlp" data-tip="유지증거금률(Maintenance Margin Rate). 포지션을 유지하려면 최소로 갖고 있어야 하는 증거금 비율. 평가금이 이 밑으로 내려가면 청산돼요. 보통 BTC 0.4%, 알트는 더 높아요.">?</span><input type="number" id="fMmr" value="0.4" step="0.05" oninput="calcFut()"><span class="suf">%</span></label>
         <button class="btn" onclick="addFut()">＋ 포트폴리오에 추가</button>
       </div>
       <div class="fcout" id="fcout"></div>
@@ -449,6 +472,43 @@
           <span class="fdhint">보유 포지션을 골라 추가 증거금·추매를 시뮬레이션 (제목 클릭=접기)</span>
         </div>
         <div class="fdbody" id="defBody">포지션을 <b>＋ 포트폴리오에 추가</b>하면 여기서 청산 방어를 시뮬레이션할 수 있습니다.</div>
+      </div>
+      <div class="futguide collapsed" id="futguide">
+        <div class="fgtoggle" onclick="toggleGuide()"><span id="fgArrow">▶</span> 📖 처음이라면? — ‘증거금 추가’와 ‘물타기(추가매수)’는 뭐가 다를까? (클릭)</div>
+        <div class="fgbody">
+          <div class="fgbox">
+            🍎 <b>아주 쉬운 비유</b><br>
+            사과를 <b>1,000원</b>에 1개 샀어요. (이 값이 ‘평단’)<br>
+            • <b class="k">증거금만 추가</b> = 지갑에 비상금을 더 넣기. 사과는 그대로 1개예요.
+            가격이 떨어져도 쫓겨나지 않게 <b>버티는 힘</b>만 세져요. 본전은 그대로 1,000원.<br>
+            • <b class="k">물타기(추가매수)</b> = 사과가 <b>800원</b>으로 싸졌을 때 1개 더 사기.
+            이제 2개, 평균 <b>900원</b>에 산 셈 → <b>본전 가격이 1,000원에서 900원으로 내려와요.</b>
+          </div>
+          <table class="fgtable">
+            <tr><th>무엇이</th><th>증거금만 추가</th><th>물타기(추가매수)</th></tr>
+            <tr><td>평단(평균 산 가격)</td><td>그대로</td><td>내려감 ⬇</td></tr>
+            <tr><td>청산가</td><td>멀어짐(안전) ✅</td><td>멀어짐(안전) ✅</td></tr>
+            <tr><td>코인 수량</td><td>그대로</td><td>늘어남 ⬆</td></tr>
+            <tr><td>포지션 크기</td><td>그대로</td><td>커짐 ⚠️</td></tr>
+            <tr><td>익절가(TP)</td><td>그대로</td><td>더 낮은 값에도 익절 가능 ⬇</td></tr>
+            <tr><td>익절 때 버는 돈</td><td>그대로</td><td>더 커짐(코인이 많으니까)</td></tr>
+            <tr><td>한 줄 요약</td><td>버티기만 함</td><td>본전을 끌어내림</td></tr>
+          </table>
+          <div class="fgbox">
+            💰 <b>나중에 익절(TP)할 때 차이</b><br>
+            • <b class="k">증거금 추가</b>: 익절가도, 그때 버는 돈도 <b>그대로</b>예요. 그냥 더 안전하게 버틴 것뿐.
+            대신 맡긴 돈이 늘어서 수익률(ROE %)은 낮아 보여요.<br>
+            • <b class="k">물타기</b>: 평단이 내려가서 <b>더 낮은 가격에서도 본전·수익</b>이 나고,
+            같은 가격에 팔아도 코인이 많아 <b>버는 돈이 더 큽니다.</b> 단, 더 떨어지면 손실도 더 커져요.
+          </div>
+          <div class="fgbox">
+            💡 <b>언제 무엇을 쓰나요?</b><br>
+            • 곧 오를 것 같고 더 안 살래 → <b class="k">증거금 추가</b> (안전하게 버티기)<br>
+            • 지금 가격이 진짜 싸다고 확신 → <b class="k">물타기</b> (평단 낮추고 수익 키우기)<br>
+            • 확신이 없으면 → 둘을 조금씩 섞기<br>
+            ⚠️ 물타기는 수익 기회와 함께 <b>손실 위험도 같이 커집니다.</b> ‘더 떨어지면 어쩌지’를 꼭 먼저 생각하세요.
+          </div>
+        </div>
       </div>
     </div>
     <div class="fbar">
@@ -1191,6 +1251,21 @@ const FUT_MMR={BTCUSDT:0.4,ETHUSDT:0.5,SOLUSDT:0.5,BNBUSDT:0.5,XRPUSDT:0.5,
   DOGEUSDT:1.0,ADAUSDT:1.0,AVAXUSDT:1.0,LINKUSDT:1.0,SUIUSDT:1.0,TRXUSDT:1.0,PEPEUSDT:1.0};
 const FCOLS=["","심볼 / 회차","방향","배율","진입가","수량","증거금(USDT)","명목가(USDT)",
   "마크가","청산가","청산거리","미실현손익","ROE","펀딩 8h","삭제"];
+/* 컬럼 용어 설명 (마우스 올리면 표시) */
+const FHELP={
+  "방향":"롱=오르면 이익 / 숏=내리면 이익",
+  "배율":"레버리지. 내 돈의 몇 배로 크게 사는지. 클수록 청산가가 가까워요.",
+  "진입가":"내가 산 가격. 여러 번 사면 평균낸 값(평단).",
+  "수량":"가진 코인 개수.",
+  "증거금(USDT)":"실제로 맡긴 내 돈(보증금). 이게 다 닳으면 청산돼요.",
+  "명목가(USDT)":"포지션 전체 크기 = 가격×수량 = 증거금×배율.",
+  "마크가":"청산 여부를 판단하는 공식 기준가격. 거래소가 정하며 체결가와 살짝 달라요.",
+  "청산가":"가격이 여기 닿으면 강제로 포지션이 종료(청산)돼요. 증거금을 거의 다 잃어요.",
+  "청산거리":"지금 마크가에서 청산가까지 몇 % 남았는지. 클수록 안전.",
+  "미실현손익":"아직 안 판 상태의 평가 손익. 팔아야 확정돼요.",
+  "ROE":"수익률. 내 증거금 대비 몇 % 벌었나/잃었나.",
+  "펀딩 8h":"무기한 선물에서 8시간마다 롱·숏끼리 주고받는 수수료. 보유만 해도 빠지거나 들어와요."
+};
 
 /* 바이낸스 선물 마크가·펀딩 */
 async function bQuote(sym){
@@ -1322,7 +1397,8 @@ function renderFut(){
   document.getElementById("futColhdr").innerHTML=
     '<th class="rownum"></th>'+colLetters(FCOLS.length-1).map(c=>`<th>${c}</th>`).join("");
   document.getElementById("futThead").innerHTML=
-    '<th class="rownum">#</th>'+FCOLS.slice(1).map(c=>`<th>${c}</th>`).join("");
+    '<th class="rownum">#</th>'+FCOLS.slice(1).map(c=>
+      `<th${FHELP[c]?` title="${FHELP[c]}" style="cursor:help"`:""}>${c}${FHELP[c]?' <sup style="font-size:7pt;opacity:.7">?</sup>':''}</th>`).join("");
   const tb=document.getElementById("futBody"); tb.innerHTML="";
   let totM=0,totN=0,totP=0;
   if(!futPos.length){
@@ -1447,14 +1523,14 @@ function calcDef(){
   body.innerHTML=`
     <div class="fdnow" id="defNow"></div>
     <div class="fdrow">
-      <label>증거금 추가</label>
+      <label>증거금 추가<span class="hlp" data-tip="내 보증금만 더 넣어요. 코인은 안 사고 평단도 그대로. 청산가만 멀어져 더 안전해집니다.">?</span></label>
       <input type="range" id="defMargin" min="0" max="${maxM.toFixed(2)}" step="${(maxM/500).toFixed(4)}" value="0" oninput="defUpdate()">
       <span class="fdamt" id="defMarginV">+0 U</span>
       <span class="fdarrow">→ 청산가</span> <span class="fdres" id="defMarginLiq">-</span>
       <span id="defMarginDist" class="fdarrow"></span>
     </div>
     <div class="fdrow">
-      <label>추매(증거금 기준)</label>
+      <label>추매(증거금 기준)<span class="hlp" data-tip="지정한 가격에 코인을 더 사요(물타기). 입력값은 추매에 쓸 증거금(내 돈). 평단이 내려가고 청산가도 내려갑니다.">?</span></label>
       <input type="number" id="defDcaPrice" placeholder="추매가" step="any" oninput="defUpdate()" title="추매할 가격대 (비우면 현재 마크가)">
       <input type="range" id="defDca" min="0" max="${maxN.toFixed(2)}" step="${(maxN/500).toFixed(4)}" value="0" oninput="defUpdate()">
       <span class="fdamt" id="defDcaV">+0 U</span>
@@ -1462,7 +1538,7 @@ function calcDef(){
       <span class="fdarrow">청산가</span> <span class="fdres" id="defDcaLiq">-</span>
     </div>
     <div class="fdrow">
-      <label>급락 방어</label><span class="fdtab" id="defTab"></span>
+      <label>급락 방어<span class="hlp" data-tip="가격이 -10/-20/-30/-50% 떨어졌을 때 청산을 피하려면 증거금을 얼마 더 넣어야 하는지. 초록=지금도 안전, 빨강=그만큼 더 필요.">?</span></label><span class="fdtab" id="defTab"></span>
     </div>
     <div class="fdgoalbox">
       <div class="fdrow">
@@ -1491,6 +1567,13 @@ function toggleDef(){
   document.getElementById("defArrow").textContent=on?"▶":"▼";
   try{ localStorage.setItem("pf_def_collapsed",on?"1":""); }catch(e){}
 }
+/* 초보 가이드 접기/펴기 */
+function toggleGuide(){
+  const d=document.getElementById("futguide");
+  const on=d.classList.toggle("collapsed");
+  document.getElementById("fgArrow").textContent=on?"▶":"▼";
+  try{ localStorage.setItem("pf_guide_open",on?"":"1"); }catch(e){}
+}
 /* 슬라이더/입력 변경 시 결과만 갱신 (라이브) */
 function defUpdate(){
   const g=defGroups()[_defKey]; if(!g) return;
@@ -1502,7 +1585,7 @@ function defUpdate(){
   if(now) now.innerHTML=`현재 · 마크가 <b>${mark!=null?fmtU(mark,dp(mark)):"로딩…"}</b>`
     +` · 청산가 <b style="color:var(--down)">${fmtU(liqNow,dp(liqNow))}</b>`
     +` · 청산거리 <b>${distNow!=null?fmtU(Math.abs(distNow),2)+"%":"-"}</b>`
-    +` · 증거금 <b>${fmtU(g.M,2)} U</b> · 실효배율 <b>${fmtU(g.effLev,1)}x</b>`;
+    +` · 증거금 <b>${fmtU(g.M,2)} U</b> · 실효배율<span class="hlp" data-tip="여러 번 나눠 산 걸 모두 합쳤을 때의 평균 배율. = 전체 명목가 ÷ 전체 증거금.">?</span> <b>${fmtU(g.effLev,1)}x</b>`;
   // 증거금 추가
   const addM=+(document.getElementById("defMargin")||{}).value||0;
   const liqM=liqPrice(g.side,g.E,g.Q,g.M+addM,g.mmr);
@@ -1606,6 +1689,11 @@ calcFut();
 try{ if(localStorage.getItem("pf_def_collapsed")){
   document.getElementById("futdef").classList.add("collapsed");
   document.getElementById("defArrow").textContent="▶";
+} }catch(e){}
+// 초보 가이드 펼침 상태 복원
+try{ if(localStorage.getItem("pf_guide_open")){
+  document.getElementById("futguide").classList.remove("collapsed");
+  document.getElementById("fgArrow").textContent="▼";
 } }catch(e){}
 setInterval(()=>refreshAll(true), 15000);     // 포트폴리오 15초
 setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 15000); // 홈 시세 15초
