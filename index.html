@@ -190,7 +190,33 @@
   .scen .safe{background:#d8f0dd;color:#1a7a32}.scen .dead{background:#f6d4d4;color:#b00}
   body.dark .scen .safe{background:#1f3a26;color:#7ad48f}
   body.dark .scen .dead{background:#3a2020;color:#ff8a8a}
-  .futwrap{overflow:auto;height:calc(100vh - 30px - 26px - 124px - 24px - 22px)}
+  #view-fut.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
+  .futwrap{overflow:auto;flex:1;min-height:90px}
+  /* 청산 방어 시뮬레이터 */
+  .futdef{margin-top:9px;border-top:2px solid var(--ribbon);padding-top:7px}
+  .fdhead{font-size:9.5pt;font-weight:700;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .fdhead select{font-family:inherit;font-size:9pt;padding:3px 6px;border:1px solid var(--grid);
+    border-radius:3px;background:var(--cell-bg);color:var(--fg);font-weight:400}
+  .fdhint{font-size:7.5pt;color:var(--muted);font-weight:400}
+  .fdbody{margin-top:6px;font-size:9pt;color:var(--fg)}
+  .fdnow{font-size:8.5pt;color:var(--muted);margin-bottom:5px}
+  .fdnow b{color:var(--fg)}
+  .fdrow{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:5px 0}
+  .fdrow>label{min-width:104px;font-size:8.5pt;color:var(--muted)}
+  .fdrow input[type=range]{width:190px;accent-color:var(--ribbon)}
+  .fdrow input[type=number]{width:92px;font-family:inherit;font-size:9pt;padding:3px 5px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .fdamt{font-weight:700;min-width:78px;font-variant-numeric:tabular-nums}
+  .fdarrow{color:var(--muted)}
+  .fdres{font-weight:700;font-variant-numeric:tabular-nums}
+  .fdtab{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+  .fdchip{border:1px solid var(--grid);border-radius:5px;padding:3px 9px;font-size:8.5pt;
+    text-align:center;line-height:1.35}
+  .fdchip .s{display:block;font-size:7pt;color:var(--muted)}
+  .fdchip.ok{background:#d8f0dd;border-color:#9bd3a8}
+  .fdchip.need{background:#fdeaea;border-color:#e3b3b3}
+  body.dark .fdchip.ok{background:#1f3a26;border-color:#2f5a3a}
+  body.dark .fdchip.need{background:#3a2222;border-color:#5a3030}
   #futGrid{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
   #futGrid th,#futGrid td{border:1px solid var(--grid);padding:4px 8px;white-space:nowrap;font-size:10pt}
   #futGrid thead th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;
@@ -405,6 +431,13 @@
         <button class="btn" onclick="addFut()">＋ 포트폴리오에 추가</button>
       </div>
       <div class="fcout" id="fcout"></div>
+      <div class="futdef">
+        <div class="fdhead">🛟 청산 방어 시뮬레이터
+          <select id="defSel" onchange="calcDef()"></select>
+          <span class="fdhint">보유 포지션을 골라 추가 증거금·추매를 시뮬레이션</span>
+        </div>
+        <div class="fdbody" id="defBody">포지션을 <b>＋ 포트폴리오에 추가</b>하면 여기서 청산 방어를 시뮬레이션할 수 있습니다.</div>
+      </div>
     </div>
     <div class="fbar">
       <div class="namebox">A1</div><div class="fx"><i>fx</i></div>
@@ -1235,9 +1268,9 @@ function addFut(){
     entry:c.entry, qty:c.qty, mmr:c.mmr, ts:Date.now()});
   localStorage.setItem(FUTLS,JSON.stringify(futPos));
   document.getElementById("fEntry").value=document.getElementById("fAmt").value="";
-  futRefresh();
+  futRefresh(); calcDef();
 }
-function delFut(id){ futPos=futPos.filter(p=>p.id!=id); localStorage.setItem(FUTLS,JSON.stringify(futPos)); renderFut(); }
+function delFut(id){ futPos=futPos.filter(p=>p.id!=id); localStorage.setItem(FUTLS,JSON.stringify(futPos)); renderFut(); calcDef(); }
 
 /* 바이낸스 USDT-M 무기한 전 종목을 datalist에 로드 (밈 제외) */
 let _futSymsLoaded=false;
@@ -1348,6 +1381,8 @@ function renderFut(){
   }
   futStat(totM,totN,totP);
   fillGrid(tb,FCOLS.length,document.querySelector(".futwrap"));
+  fillDefSelect();
+  if(!document.getElementById("defNow")) calcDef(); else defUpdate();
 }
 function futStat(m,n,p){
   document.getElementById("fst-count").textContent=`${futPos.length} 포지션`;
@@ -1356,6 +1391,130 @@ function futStat(m,n,p){
   const el=document.getElementById("fst-pnl");
   el.textContent=futPos.length?`${p>=0?"+":""}${fmtU(p,2)} U`:"-";
   el.style.color=p>=0?"#ffd2d2":"#bcd0ff";
+}
+
+/* ============ 청산 방어 시뮬레이터 ============ */
+/* 포지션을 sym|side로 묶어 병합(격리) 통계 산출 */
+function defGroups(){
+  const g={};
+  futPos.forEach(p=>{ const k=p.sym+"|"+p.side; (g[k]=g[k]||[]).push(p); });
+  const out={};
+  for(const k in g){
+    const arr=g[k], [sym,side]=k.split("|");
+    let Q=0,M=0,EW=0;
+    arr.forEach(p=>{ const n=p.entry*p.qty; Q+=p.qty; M+=n/p.lev; EW+=p.entry*p.qty; });
+    const E=Q?EW/Q:0, notional=E*Q;
+    out[k]={sym,side,E,Q,M,mmr:arr[0].mmr,notional,effLev:M?notional/M:0};
+  }
+  return out;
+}
+/* 청산가가 목표 T가 되게 하는 데 필요한 총 증거금 */
+function reqMargin(side,E,Q,mmr,T){
+  return side==="LONG" ? Q*(E-T*(1-mmr)) : Q*(T*(1+mmr)-E);
+}
+let _defKey="";
+function fillDefSelect(){
+  const gs=defGroups(), keys=Object.keys(gs);
+  const sel=document.getElementById("defSel");
+  if(!keys.length){ sel.innerHTML='<option value="">— 포지션 없음 —</option>'; _defKey=""; return; }
+  sel.innerHTML=keys.map(k=>{
+    const g=gs[k];
+    return `<option value="${k}">${g.sym} ${g.side==="LONG"?"롱":"숏"}</option>`;
+  }).join("");
+  if(!gs[_defKey]) _defKey=keys[0];
+  sel.value=_defKey;
+}
+/* 패널 골격 렌더 (포지션/선택 변경 시) */
+function calcDef(){
+  const sel=document.getElementById("defSel");
+  _defKey=sel.value;
+  const g=defGroups()[_defKey];
+  const body=document.getElementById("defBody");
+  if(!g){ body.innerHTML="포지션을 <b>＋ 포트폴리오에 추가</b>하면 여기서 청산 방어를 시뮬레이션할 수 있습니다."; return; }
+  const maxM=Math.max(g.M*4,50), maxN=Math.max(g.notional,50);
+  body.innerHTML=`
+    <div class="fdnow" id="defNow"></div>
+    <div class="fdrow">
+      <label>증거금 추가</label>
+      <input type="range" id="defMargin" min="0" max="${maxM.toFixed(2)}" step="${(maxM/500).toFixed(4)}" value="0" oninput="defUpdate()">
+      <span class="fdamt" id="defMarginV">+0 U</span>
+      <span class="fdarrow">→ 청산가</span> <span class="fdres" id="defMarginLiq">-</span>
+      <span id="defMarginDist" class="fdarrow"></span>
+    </div>
+    <div class="fdrow">
+      <label>추매(마크가 투입)</label>
+      <input type="range" id="defDca" min="0" max="${maxN.toFixed(2)}" step="${(maxN/500).toFixed(4)}" value="0" oninput="defUpdate()">
+      <span class="fdamt" id="defDcaV">+0 U</span>
+      <span class="fdarrow">→ 평단</span> <span class="fdres" id="defDcaE">-</span>
+      <span class="fdarrow">청산가</span> <span class="fdres" id="defDcaLiq">-</span>
+    </div>
+    <div class="fdrow">
+      <label>급락 방어</label><span class="fdtab" id="defTab"></span>
+    </div>
+    <div class="fdrow">
+      <label>목표 생존가</label>
+      <input type="number" id="defTarget" placeholder="USDT" step="any" oninput="defUpdate()">
+      <span class="fdres" id="defTargetRes" style="font-weight:400">→ 가격을 입력하면 필요 증거금을 알려줍니다</span>
+    </div>`;
+  defUpdate();
+}
+/* 슬라이더/입력 변경 시 결과만 갱신 (라이브) */
+function defUpdate(){
+  const g=defGroups()[_defKey]; if(!g) return;
+  const q=futQuotes[g.sym], mark=q?q.mark:null;
+  const dp=v=>v!=null&&v<10?6:2;
+  const liqNow=liqPrice(g.side,g.E,g.Q,g.M,g.mmr);
+  const distNow=(mark&&liqNow)?(g.side==="LONG"?(mark-liqNow)/mark:(liqNow-mark)/mark)*100:null;
+  const now=document.getElementById("defNow");
+  if(now) now.innerHTML=`현재 · 마크가 <b>${mark!=null?fmtU(mark,dp(mark)):"로딩…"}</b>`
+    +` · 청산가 <b style="color:var(--down)">${fmtU(liqNow,dp(liqNow))}</b>`
+    +` · 청산거리 <b>${distNow!=null?fmtU(Math.abs(distNow),2)+"%":"-"}</b>`
+    +` · 증거금 <b>${fmtU(g.M,2)} U</b> · 실효배율 <b>${fmtU(g.effLev,1)}x</b>`;
+  // 증거금 추가
+  const addM=+(document.getElementById("defMargin")||{}).value||0;
+  const liqM=liqPrice(g.side,g.E,g.Q,g.M+addM,g.mmr);
+  const distM=(mark&&liqM)?(g.side==="LONG"?(mark-liqM)/mark:(liqM-mark)/mark)*100:null;
+  const mv=document.getElementById("defMarginV"); if(mv) mv.textContent="+"+fmtU(addM,2)+" U";
+  const ml=document.getElementById("defMarginLiq"); if(ml){ ml.textContent=fmtU(liqM,dp(liqM)); ml.style.color="var(--down)"; }
+  const md=document.getElementById("defMarginDist");
+  if(md) md.textContent=distM!=null?`(거리 ${fmtU(Math.abs(distM),2)}%)`:"";
+  // 추매 (마크가에 USDT 투입, 실효배율 유지)
+  const dca=+(document.getElementById("defDca")||{}).value||0;
+  let dE=g.E,dLiq=liqNow;
+  if(mark&&dca>0){
+    const qty=dca/mark, addMg=g.effLev?dca/g.effLev:0;
+    const nQ=g.Q+qty, nE=(g.E*g.Q+mark*qty)/nQ, nM=g.M+addMg;
+    dE=nE; dLiq=liqPrice(g.side,nE,nQ,nM,g.mmr);
+  }
+  const dv=document.getElementById("defDcaV"); if(dv) dv.textContent="+"+fmtU(dca,2)+" U";
+  const de=document.getElementById("defDcaE"); if(de) de.textContent=fmtU(dE,dp(dE));
+  const dl=document.getElementById("defDcaLiq"); if(dl){ dl.textContent=fmtU(dLiq,dp(dLiq)); dl.style.color="var(--down)"; }
+  // 급락 방어표
+  const tab=document.getElementById("defTab");
+  if(tab&&mark){
+    tab.innerHTML=[10,20,30,50].map(x=>{
+      const T=g.side==="LONG"?mark*(1-x/100):mark*(1+x/100);
+      const extra=reqMargin(g.side,g.E,g.Q,g.mmr,T)-g.M;
+      const ok=extra<=0.0001;
+      return `<span class="fdchip ${ok?'ok':'need'}">${g.side==="LONG"?"−":"+"}${x}%<span class="s">${ok?"✓ 안전":"증거금 +"+fmtU(extra,1)+"U"}</span></span>`;
+    }).join("");
+  } else if(tab){ tab.innerHTML='<span class="fdhint">마크가 로딩 중…</span>'; }
+  // 목표 생존가 역산
+  const tEl=document.getElementById("defTarget"), res=document.getElementById("defTargetRes");
+  if(tEl&&res){
+    const T=+tEl.value||0;
+    if(T>0){
+      const extra=reqMargin(g.side,g.E,g.Q,g.mmr,T)-g.M;
+      const valid=g.side==="LONG"?T<g.E:T>g.E;
+      if(!valid) res.innerHTML=`<span style="color:var(--muted)">${g.side==="LONG"?"진입가보다 낮은":"진입가보다 높은"} 가격을 입력하세요</span>`;
+      else if(extra<=0.0001) res.innerHTML=`<b style="color:var(--up)">✓ 이미 ${fmtU(T,dp(T))}까지 안전</b> (추가 불필요)`;
+      else{
+        const qtyNeed=mark?extra*g.effLev/mark:null;
+        res.innerHTML=`<b>증거금 +${fmtU(extra,2)} U</b> 추가하면 ${fmtU(T,dp(T))}까지 버팁니다`
+          +(qtyNeed?` <span style="color:var(--muted)">· 또는 마크가 추매 ${fmtU(extra*g.effLev,1)}U어치</span>`:"");
+      }
+    } else res.innerHTML=`<span style="color:var(--muted)">→ 가격을 입력하면 필요 증거금을 알려줍니다</span>`;
+  }
 }
 
 render();
