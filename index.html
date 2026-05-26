@@ -316,6 +316,22 @@
   .dcat .yld.hi{color:var(--up)}
   .dcat .yld.mid{color:#c08400}
   .dcat .ld{color:var(--muted);font-size:8pt}
+  /* 트럼프 뉴스 박스 */
+  .trumpnews{margin:10px 0;border:2px solid #b03030;border-radius:6px;padding:10px;
+    background:var(--cell-bg);min-height:60px}
+  .trumpnews .nhead{font-size:10pt;font-weight:700;color:#b03030;margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .trumpnews .nhead .ld{font-weight:400;font-size:8pt;color:var(--muted)}
+  .trumpnews .nitem{display:block;padding:6px 4px;border-bottom:1px solid var(--grid);
+    text-decoration:none;color:var(--fg)}
+  .trumpnews .nitem:last-of-type{border-bottom:0}
+  .trumpnews .nitem:hover{background:var(--band)}
+  .trumpnews .ntit{font-size:9pt;font-weight:600;line-height:1.45}
+  .trumpnews .nmeta{font-size:7.5pt;color:var(--muted);margin-top:3px}
+  .trumpnews .nbtn{background:transparent;border:1px solid var(--grid);border-radius:3px;
+    padding:2px 8px;font-size:8pt;cursor:pointer;color:var(--fg);margin-left:auto}
+  .trumpnews .nbtn:hover{background:var(--band)}
+  .trumpnews .nfoot{font-size:7.5pt;color:var(--muted);padding:6px 0 0;
+    border-top:1px dashed var(--grid);margin-top:6px;line-height:1.45}
   /* ===== Strategy: 전략 ===== */
   #view-str.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
   .strpick{display:flex;gap:8px;flex-wrap:wrap;padding:10px;background:var(--hdr-bg);border-bottom:1px solid var(--grid)}
@@ -649,6 +665,7 @@
     </div>
     <div class="sheetwrap divwrap">
       <div class="dbody" id="dbody">
+        <div class="trumpnews" id="trumpNews"></div>
         <div class="divguide" id="divguide">
           <div class="fgtoggle" onclick="toggleDivGuide()"><span id="dgArrow">▼</span> 📖 처음이라면? — 배당과 풍차돌리기는 뭘까? (클릭으로 접기)</div>
           <div class="fgbody" id="dgbody">
@@ -1276,7 +1293,7 @@ function showTab(t){
   });
   if(t==="home") homeRefresh();
   else if(t==="fut") futRefresh();
-  else if(t==="div"){ renderDivCat(); if(!_divInited){ _divInited=true; calcDiv(); } }
+  else if(t==="div"){ renderDivCat(); loadTrumpNews(); if(!_divInited){ _divInited=true; calcDiv(); } }
   else if(t==="str"){ if(!_strInited){ _strInited=true; renderStratPicker(); pickStrategy("allw"); updRot(); } }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
 }
@@ -2069,6 +2086,21 @@ const DIV_CAT=[
       {sym:"030200.KS", nm:"KT",             br:"통신"},
       {sym:"011200.KS", nm:"HMM",            br:"해운"},
     ]},
+  {id:"trump", title:"🇺🇸 트럼프 트레이드 (Trump Trade)",
+    desc:"트럼프 행정부 정책 수혜 종목·ETF. 정책·뉴스에 따라 변동성 큼 ⚠️",
+    items:[
+      {sym:"DJT",  nm:"트럼프 미디어 & 테크",  br:"Truth Social 모회사. ⚠️ 단일주, 변동성 극심. 배당 없음"},
+      {sym:"MAGA", nm:"Point Bridge America First", br:"공화당 친화 기업 바스켓 ETF"},
+      {sym:"YALL", nm:"God Bless America",      br:"보수 성향 기업 ETF"},
+      {sym:"URA",  nm:"Global X Uranium",       br:"우라늄·원자력. 친원자력 정책 수혜"},
+      {sym:"NUKZ", nm:"Range Nuclear Renaissance", br:"원자력 르네상스 테마"},
+      {sym:"XLE",  nm:"에너지 섹터 (Energy)",   br:"석유·가스. 화석연료 친화 정책. 분기배당"},
+      {sym:"XOP",  nm:"S&P 석유·가스 시추",     br:"미국 셰일·시추 기업"},
+      {sym:"ITA",  nm:"iShares 항공우주·방산",  br:"국방예산 증가 수혜"},
+      {sym:"IBIT", nm:"iShares Bitcoin ETF",    br:"비트코인 현물. 친암호화폐 정책"},
+      {sym:"BITO", nm:"ProShares Bitcoin",      br:"비트코인 선물 ETF (월배당)"},
+      {sym:"MSTR", nm:"MicroStrategy",          br:"비트코인 대량 보유 회사. ⚠️ 변동성 큼"},
+    ]},
   {id:"idx", title:"📈 비교용: 지수·성장 ETF (배당 적음)",
     desc:"배당보다 주가 상승이 목적. 배당수익률 1~2% 정도예요. 'QLD/TQQQ 같은 레버리지는 배당 거의 없음'",
     items:[
@@ -2149,6 +2181,32 @@ function useDiv(sym){
   document.getElementById("dvSym").value=sym;
   calcDiv();
   setTimeout(()=>document.getElementById("dcout").scrollIntoView({behavior:"smooth",block:"start"}),150);
+}
+/* 트럼프 정책 최신 뉴스 (Yahoo Finance — Truth Social 직접 피드는 Cloudflare 차단) */
+async function loadTrumpNews(){
+  const el=document.getElementById("trumpNews"); if(!el) return;
+  if(!el.dataset.loaded) el.innerHTML='<div class="nhead">📰 트럼프 정책 최신 뉴스 <span class="ld">⏳ 불러오는 중…</span></div>';
+  try{
+    const u="https://query1.finance.yahoo.com/v1/finance/search?q="+encodeURIComponent("Trump DJT Truth Social policy executive order")+"&newsCount=12&quotesCount=0";
+    const j=await jget(u);
+    const news=(j?.news||[]).filter(n=>n.title&&n.link);
+    if(!news.length){
+      el.innerHTML='<div class="nhead">📰 트럼프 정책 최신 뉴스</div><div class="nfoot">최근 뉴스를 못 가져왔어요. 잠시 후 다시 시도해 주세요.</div>';
+      return;
+    }
+    el.innerHTML=`<div class="nhead">📰 트럼프 정책 최신 뉴스
+        <span class="ld">${new Date().toLocaleString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})} 갱신 · 5분 간격 자동</span>
+        <button class="nbtn" onclick="loadTrumpNews()">🔄</button>
+      </div>`
+      + news.slice(0,8).map(n=>`<a class="nitem" href="${esc(n.link)}" target="_blank" rel="noopener">
+          <div class="ntit">${esc(n.title)}</div>
+          <div class="nmeta">${esc(n.publisher||"-")} · ${new Date((n.providerPublishTime||0)*1000).toLocaleString("ko-KR",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}${n.relatedTickers&&n.relatedTickers.length?' · '+n.relatedTickers.slice(0,4).join(', '):''}</div>
+        </a>`).join("")
+      + '<div class="nfoot">⚠️ Truth Social 직접 피드는 Cloudflare 차단으로 정적 사이트에서 받기 불가 — Yahoo Finance 뉴스로 자동 표시(DJT·Trump·정책 관련). 클릭 시 원문 새 탭으로 열림.</div>';
+    el.dataset.loaded="1";
+  }catch(e){
+    el.innerHTML='<div class="nhead">📰 트럼프 정책 최신 뉴스 <button class="nbtn" onclick="loadTrumpNews()">🔄 다시</button></div><div class="nfoot">뉴스 로딩 실패 — 인터넷 또는 프록시 문제일 수 있어요.</div>';
+  }
 }
 
 /* ============ 전략 탭 (올웨더·로테이션) ============ */
@@ -2412,6 +2470,7 @@ try{ if(localStorage.getItem("pf_guide_open")){
 setInterval(()=>refreshAll(true), 15000);     // 포트폴리오 15초
 setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 15000); // 홈 시세 15초
 setInterval(()=>{ if(curTab==="fut") futRefresh(); }, 15000);   // 선물 15초
+setInterval(()=>{ if(curTab==="div") loadTrumpNews(); }, 300000); // 배당탭 트럼프 뉴스 5분
 // 탭이 다시 활성화될 때 즉시 갱신
 document.addEventListener("visibilitychange",()=>{
   if(document.visibilityState==="visible"){
