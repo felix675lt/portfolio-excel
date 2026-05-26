@@ -291,6 +291,31 @@
   .dvsimbox{background:var(--cell-bg);border:2px solid var(--ribbon);border-radius:6px;
     padding:11px 14px;margin:10px 0;line-height:1.75;font-size:9.5pt}
   .dvsimbox h3{font-size:10pt;margin-bottom:6px;color:var(--ribbon)}
+  /* 분야별 둘러보기 아코디언 */
+  .dcat{margin:6px 0;border:1px solid var(--grid);border-radius:6px;background:var(--cell-bg);
+    overflow:hidden}
+  .dcathead{padding:9px 12px;cursor:pointer;font-size:9.5pt;font-weight:600;
+    background:var(--band);user-select:none}
+  .dcathead:hover{background:var(--hdr-bg)}
+  .dcathead .ar{display:inline-block;width:14px;color:var(--ribbon)}
+  .dcathead .ct{font-weight:400;color:var(--muted);font-size:8.5pt}
+  .dcat.collapsed .dcatbody{display:none}
+  .dcatbody{padding:0 12px 10px;border-top:1px solid var(--grid)}
+  .dcatdesc{font-size:8.5pt;color:var(--muted);padding:7px 0 4px}
+  .dcat table{border-collapse:collapse;width:100%;font-size:8.5pt}
+  .dcat th,.dcat td{border:1px solid var(--grid);padding:5px 8px;text-align:center;vertical-align:middle}
+  .dcat th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;font-size:8pt}
+  .dcat td.lf{text-align:left;max-width:300px}
+  .dcat .nm{font-weight:600;font-size:9pt}
+  .dcat .sy{color:var(--muted);font-size:7.5pt;font-family:monospace;margin-left:3px}
+  .dcat .br{font-size:8pt;color:var(--muted);display:block;margin-top:1px;white-space:normal;line-height:1.4}
+  .dcat .pick{background:var(--ribbon);color:#fff;border:0;border-radius:3px;
+    padding:3px 9px;cursor:pointer;font-size:8.5pt;font-family:inherit;white-space:nowrap}
+  .dcat .pick:hover{filter:brightness(1.12)}
+  .dcat .yld{font-weight:700;font-variant-numeric:tabular-nums}
+  .dcat .yld.hi{color:var(--up)}
+  .dcat .yld.mid{color:#c08400}
+  .dcat .ld{color:var(--muted);font-size:8pt}
   /* ===== Sheet tabs ===== */
   .sheettabs{height:0}
   @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}
@@ -617,6 +642,7 @@
             </div>
           </div>
         </div>
+        <div id="divcat"></div>
         <div id="dvHist"></div>
         <div id="dvSim"></div>
       </div>
@@ -1141,7 +1167,7 @@ function showTab(t){
   });
   if(t==="home") homeRefresh();
   else if(t==="fut") futRefresh();
-  else if(t==="div"){ if(!_divInited){ _divInited=true; calcDiv(); } }
+  else if(t==="div"){ renderDivCat(); if(!_divInited){ _divInited=true; calcDiv(); } }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
 }
 
@@ -1867,7 +1893,153 @@ function defUpdate(){
 }
 
 /* ============ 배당 탭 ============ */
-let _divInited=false;
+let _divInited=false, _divCatRendered=false;
+const divCache={};
+/* 분야별 큐레이션 — 초보자가 한눈에 둘러보기 */
+const DIV_CAT=[
+  {id:"hi", title:"🌪️ 월배당 고수익 ETF (옵션·커버드콜)",
+    desc:"매달 배당 + 두자릿수 수익률. 단, 옵션 전략이라 변동성 크고 원금이 줄어들 수 있어요. ⚠️ 고수익 = 고위험",
+    items:[
+      {sym:"QQQI", nm:"NEOS Nasdaq100 고수익", br:"나스닥100 옵션 매도 → 매달 배당 (연 13%+)"},
+      {sym:"JEPQ", nm:"JPM 나스닥 프리미엄", br:"나스닥 옵션 → 매달 배당 (연 9~10%, 변동성 적당)"},
+      {sym:"JEPI", nm:"JPM 프리미엄 인컴", br:"S&P500 옵션 → 매달 배당 (연 7~8%, 안정)"},
+      {sym:"SPYI", nm:"NEOS S&P500 고수익", br:"S&P500 옵션 → 매달 배당 (연 12%+)"},
+      {sym:"FEPI", nm:"FT 빅테크 인컴", br:"빅테크 옵션 → 월배당 (연 25%+, 변동성 큼 ⚠️)"},
+      {sym:"BTCI", nm:"NEOS 비트코인 인컴", br:"BTC ETF 옵션 → 월배당 (변동성 매우 큼 ⚠️)"},
+      {sym:"YMAX", nm:"YieldMax 종합", br:"YieldMax 단일종목 ETF 묶음 (월배당 50%+, 원금 손실 위험 매우 큼 ⚠️⚠️)"},
+      {sym:"NVDY", nm:"YieldMax NVDA", br:"엔비디아 콜 매도 월배당 ~50%, 주가는 빠지기 쉬움 ⚠️"},
+      {sym:"MSTY", nm:"YieldMax MSTR", br:"마이크로스트레티지 콜 매도, 변동성 극심 ⚠️⚠️"},
+    ]},
+  {id:"core", title:"📊 배당성장·우량 ETF (분기)",
+    desc:"매년 배당을 늘려온 회사 묶음. 변동성 작고 장기 보유에 좋아요",
+    items:[
+      {sym:"SCHD", nm:"슈왑 美배당", br:"질좋은 배당주 100선. 분기배당 + 매년 인상"},
+      {sym:"DGRO", nm:"iShares 배당성장", br:"매년 배당 올리는 미국주 중심"},
+      {sym:"VIG",  nm:"뱅가드 배당성장", br:"10년+ 배당 인상한 회사들"},
+      {sym:"VYM",  nm:"뱅가드 고배당", br:"미국 고배당주 종합"},
+      {sym:"HDV",  nm:"iShares 핵심 고배당", br:"우량 고배당 75선"},
+      {sym:"NOBL", nm:"S&P 배당귀족 ETF", br:"25년+ 배당 인상한 S&P500 회사들"},
+      {sym:"SPYD", nm:"SPDR S&P500 고배당", br:"S&P500 안에서 배당 높은 80선"},
+    ]},
+  {id:"king", title:"👑 배당귀족 — 오래 늘려온 개별 회사",
+    desc:"개별 회사 주식. 분기마다 배당 + 매년 인상이 보통",
+    items:[
+      {sym:"KO",  nm:"코카콜라",     br:"60년+ 매년 배당 인상"},
+      {sym:"JNJ", nm:"존슨앤존슨",   br:"의료·제약. 60년+ 배당 인상"},
+      {sym:"PG",  nm:"P&G",         br:"생활용품. 60년+ 인상"},
+      {sym:"PEP", nm:"펩시코",       br:"음료·과자. 50년+ 인상"},
+      {sym:"MMM", nm:"3M",           br:"산업·접착제. 60년+ 인상"},
+      {sym:"MO",  nm:"알트리아",     br:"담배. 고배당 ~7%"},
+      {sym:"T",   nm:"AT&T",         br:"통신. 고배당 ~6%"},
+      {sym:"VZ",  nm:"버라이즌",     br:"통신. 고배당 ~7%"},
+      {sym:"XOM", nm:"엑손모빌",     br:"석유·가스. 40년+ 인상"},
+      {sym:"CVX", nm:"셰브론",       br:"석유. 30년+ 인상"},
+    ]},
+  {id:"reit", title:"🏢 리츠(REIT) — 부동산 임대료",
+    desc:"건물·창고·호텔 임대료를 배당으로 나눠줘요. 월배당 많음",
+    items:[
+      {sym:"O",    nm:"리얼티 인컴",       br:"월배당의 대명사. 56년+ 인상. 연 ~5%"},
+      {sym:"VICI", nm:"VICI 프로퍼티스",   br:"카지노·호텔 부동산. 분기 ~5%"},
+      {sym:"AGNC", nm:"AGNC",              br:"모기지 REIT 월배당 14%+ (변동성 큼 ⚠️)"},
+      {sym:"STAG", nm:"STAG",              br:"산업·물류 부동산 월배당"},
+      {sym:"MAIN", nm:"메인 스트리트",     br:"BDC. 월배당 + 보너스"},
+      {sym:"WPC",  nm:"W. P. 캐리",        br:"분기. 다양한 부동산 임대"},
+    ]},
+  {id:"kr", title:"🇰🇷 국내 배당주",
+    desc:"한국 주식. 보통 1년에 1~2회, 일부 은행지주는 분기로 전환 중",
+    items:[
+      {sym:"015760.KS", nm:"한국전력",       br:"전력 공기업"},
+      {sym:"105560.KS", nm:"KB금융",         br:"은행지주. 분기배당 도입"},
+      {sym:"055550.KS", nm:"신한지주",       br:"은행지주"},
+      {sym:"086790.KS", nm:"하나금융지주",   br:"은행지주"},
+      {sym:"316140.KS", nm:"우리금융지주",   br:"은행지주"},
+      {sym:"005490.KS", nm:"POSCO홀딩스",    br:"철강·이차전지"},
+      {sym:"032830.KS", nm:"삼성생명",       br:"생명보험"},
+      {sym:"017670.KS", nm:"SK텔레콤",       br:"통신. 분기배당"},
+      {sym:"030200.KS", nm:"KT",             br:"통신"},
+      {sym:"011200.KS", nm:"HMM",            br:"해운"},
+    ]},
+  {id:"idx", title:"📈 비교용: 지수·성장 ETF (배당 적음)",
+    desc:"배당보다 주가 상승이 목적. 배당수익률 1~2% 정도예요. 'QLD/TQQQ 같은 레버리지는 배당 거의 없음'",
+    items:[
+      {sym:"VOO",  nm:"뱅가드 S&P500",    br:"미국 대표 500개 회사 (배당 ~1.3%)"},
+      {sym:"SPY",  nm:"SPDR S&P500",      br:"S&P500 원조 (배당 ~1.2%)"},
+      {sym:"QQQ",  nm:"인베스코 나스닥100", br:"기술주 100선 (배당 ~0.5%)"},
+      {sym:"QQQM", nm:"인베스코 Q",        br:"QQQ 저비용 버전"},
+      {sym:"VTI",  nm:"뱅가드 전체시장",   br:"미국 주식 전체"},
+      {sym:"QLD",  nm:"프로셰어즈 2배 나스닥", br:"⚠️ 나스닥 2배 레버리지. 배당 거의 없음. 장기보유 부적합"},
+      {sym:"TQQQ", nm:"프로셰어즈 3배 나스닥", br:"⚠️ 나스닥 3배 레버리지. 변동성 극심"},
+    ]}
+];
+function renderDivCat(){
+  if(_divCatRendered) return;
+  _divCatRendered=true;
+  const el=document.getElementById("divcat");
+  el.innerHTML=`<h3 style="font-size:10pt;margin:14px 0 6px">📚 분야별 둘러보기 <span class="ct" style="font-weight:400;color:var(--muted);font-size:8.5pt">— 종목 옆 ‘📊 계산’ 버튼을 누르면 위 계산기에 자동 입력</span></h3>`
+   + DIV_CAT.map(c=>`<div class="dcat collapsed" id="dcat-${c.id}">
+       <div class="dcathead" onclick="toggleCat('${c.id}')"><span class="ar">▶</span> ${c.title} <span class="ct">— ${c.items.length}종목</span></div>
+       <div class="dcatbody">
+         ${c.desc?`<div class="dcatdesc">${c.desc}</div>`:''}
+         <table><tr><th>종목</th><th>현재가</th><th>배당주기</th><th>연 수익률</th><th>한주당 연</th><th></th></tr>
+         ${c.items.map(it=>`<tr id="r-${it.sym.replace(/[.]/g,'_')}">
+           <td class="lf"><span class="nm">${it.nm}</span><span class="sy">${it.sym}</span><span class="br">${it.br}</span></td>
+           <td class="ld" data-f="price">-</td>
+           <td class="ld" data-f="freq">-</td>
+           <td class="yld ld" data-f="yld">-</td>
+           <td class="ld" data-f="annu">-</td>
+           <td><button class="pick" onclick="useDiv('${it.sym}')">📊 계산</button></td>
+         </tr>`).join('')}
+         </table>
+       </div></div>`).join('');
+}
+function toggleCat(id){
+  const d=document.getElementById("dcat-"+id);
+  const wasCollapsed=d.classList.contains("collapsed");
+  d.classList.toggle("collapsed");
+  const ar=d.querySelector(".ar");
+  if(ar) ar.textContent=d.classList.contains("collapsed")?"▶":"▼";
+  if(wasCollapsed) loadCatData(id);
+}
+async function loadCatData(id){
+  const cat=DIV_CAT.find(c=>c.id===id); if(!cat) return;
+  await Promise.all(cat.items.map(async it=>{
+    if(divCache[it.sym]){ fillCatRow(it); return; }
+    try{
+      const d=await yDividends(it.sym);
+      divCache[it.sym]={price:d.price, annual:d.annual,
+        yld:d.price?d.annual/d.price*100:0, freq:d.freq, cur:d.cur};
+    }catch(e){
+      divCache[it.sym]={fail:true};
+    }
+    fillCatRow(it);
+  }));
+}
+function fillCatRow(it){
+  const c=divCache[it.sym]; if(!c) return;
+  const row=document.getElementById("r-"+it.sym.replace(/[.]/g,"_"));
+  if(!row) return;
+  if(c.fail){
+    row.querySelectorAll('[data-f]').forEach(e=>{e.textContent="—";e.classList.add("ld");});
+    return;
+  }
+  const isKR=c.cur==="KRW"||/\.K[SQ]$/.test(it.sym);
+  const priceStr=isKR? "₩"+fmt(c.price,0) : "$"+fmt(c.price,c.price<10?4:2);
+  const annStr=c.annual>0 ? (isKR? "₩"+fmt(c.annual,0) : "$"+fmt(c.annual,c.annual<1?4:2)) : "배당 없음";
+  const set=(f,v,cls)=>{const e=row.querySelector(`[data-f="${f}"]`); if(e){e.textContent=v;e.classList.remove("ld");if(cls)e.className=cls;}};
+  set("price",priceStr,"");
+  set("freq",c.annual>0?c.freq:"-","");
+  const yldEl=row.querySelector('[data-f="yld"]');
+  if(yldEl){
+    yldEl.textContent= c.annual>0? fmt(c.yld,2)+"%" : "-";
+    yldEl.className="yld"+(c.yld>=8?" hi":(c.yld>=3?" mid":""));
+  }
+  set("annu",annStr,"");
+}
+function useDiv(sym){
+  document.getElementById("dvSym").value=sym;
+  calcDiv();
+  setTimeout(()=>document.getElementById("dcout").scrollIntoView({behavior:"smooth",block:"start"}),150);
+}
 function toggleDivGuide(){
   const d=document.getElementById("divguide");
   const on=d.classList.toggle("collapsed");
