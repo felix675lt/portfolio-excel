@@ -316,6 +316,35 @@
   .dcat .yld.hi{color:var(--up)}
   .dcat .yld.mid{color:#c08400}
   .dcat .ld{color:var(--muted);font-size:8pt}
+  /* ===== Strategy: 전략 ===== */
+  #view-str.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
+  .strpick{display:flex;gap:8px;flex-wrap:wrap;padding:10px;background:var(--hdr-bg);border-bottom:1px solid var(--grid)}
+  .strcard{flex:1;min-width:160px;padding:9px 12px;border:2px solid var(--grid);border-radius:6px;
+    background:var(--cell-bg);cursor:pointer;font-size:9pt;line-height:1.4;transition:all .12s}
+  .strcard.on{border-color:var(--ribbon);background:var(--band);box-shadow:0 1px 6px rgba(33,115,70,.18)}
+  .strcard:hover{filter:brightness(1.05)}
+  .strcard .t{font-size:9.5pt;font-weight:700}
+  .strcard .d{font-size:8pt;color:var(--muted);font-weight:400;margin-top:4px}
+  .strcard .r{display:inline-block;font-size:7.5pt;padding:1px 6px;border-radius:8px;
+    background:var(--ribbon);color:#fff;margin-top:4px}
+  .strcard .r.안정{background:#2a7a4a}.strcard .r.중간{background:#a36a00}
+  .strcard .r.공격{background:#b03030}.strcard .r.보수{background:#205070}
+  .stralloc{background:var(--cell-bg);border-bottom:1px solid var(--grid);padding:10px}
+  .srrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .srrow label{display:flex;flex-direction:column;font-size:7.5pt;color:var(--muted);gap:3px}
+  .srrow input,.srrow select{font-family:inherit;font-size:9.5pt;padding:4px 6px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .srrow input[type=number]{width:160px}
+  .sralloctab{border-collapse:collapse;width:100%;font-size:8.5pt;margin-top:8px}
+  .sralloctab th,.sralloctab td{border:1px solid var(--grid);padding:5px 8px}
+  .sralloctab th{background:var(--ribbon);color:#fff;text-align:center;font-size:8pt}
+  .sralloctab td{text-align:right;vertical-align:middle}
+  .sralloctab td:first-child,.sralloctab td:nth-child(2),.sralloctab td:last-child{text-align:left}
+  .sralloctab .sm{font-weight:600;font-size:9pt}
+  .sralloctab .ld{color:var(--muted);font-size:8pt}
+  .sralloctab tfoot td{background:var(--band);font-weight:700}
+  .stsum{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .stsum .ocard{min-width:120px}
   /* ===== Sheet tabs ===== */
   .sheettabs{height:0}
   @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}
@@ -340,6 +369,7 @@
     <span id="tab-insert" onclick="showTab('insert')">삽입</span>
     <span id="tab-fut" onclick="showTab('fut')">선물</span>
     <span id="tab-div" onclick="showTab('div')">배당</span>
+    <span id="tab-str" onclick="showTab('str')">전략</span>
     <span onclick="showTab('insert')">수식</span><span onclick="showTab('insert')">데이터</span>
     <span onclick="showTab('home')">보기</span>
   </div>
@@ -645,6 +675,85 @@
         <div id="divcat"></div>
         <div id="dvHist"></div>
         <div id="dvSim"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 전략: 올웨더·성장+배당 로테이션 ===================== -->
+  <div id="view-str" class="view">
+    <div class="strpick" id="strpick"></div>
+    <div class="stralloc">
+      <div class="srrow">
+        <label>총 투자금<input type="number" id="strAmt" value="100000000" step="any"></label>
+        <select id="strCur"><option value="KRW">₩ 원화</option><option value="USD">$ 달러</option></select>
+        <button class="btn" onclick="calcStrategy()">📊 배분 계산</button>
+        <span class="fdhint" id="strHint">레이 달리오 올웨더부터 골라보세요</span>
+      </div>
+      <div id="strOut"></div>
+    </div>
+    <div class="fbar">
+      <div class="namebox">A1</div><div class="fx"><i>fx</i></div>
+      <div class="content" id="sbrief">=ALLOCATE() · 분산 포트폴리오 추천기</div>
+    </div>
+    <div class="sheetwrap divwrap">
+      <div class="dbody">
+        <div class="divguide" id="strGuide">
+          <div class="fgtoggle" onclick="toggleStrGuide('strGuide','stArrow')"><span id="stArrow">▼</span> 🌦️ 올웨더(All-Weather) 포트폴리오 — 왜 초보자에게 좋을까? (클릭으로 접기)</div>
+          <div class="fgbody">
+            <div class="fgbox">
+              <b>레이 달리오</b>(세계 최대 헤지펀드 브리지워터 창업자)가 1996년에 만든 포트폴리오예요.
+              핵심 아이디어: <b>"미래는 모른다 — 그러면 어떤 날씨에도 살아남는 우산을 펴자"</b>.<br>
+              경제는 4가지 날씨가 있어요. ① 호황(주식↑) ② 불황(채권↑) ③ 인플레(금·원자재↑) ④ 디플레(장기채↑).
+              네 자산을 모두 가지고 있으면 <b>어떤 날씨에도 큰 손실 없이</b> 지나갈 수 있어요.
+            </div>
+            <table class="fgtable">
+              <tr><th>자산</th><th>비중</th><th>역할</th></tr>
+              <tr><td>주식 (VTI)</td><td>30%</td><td>호황 때 돈을 벌어줘요</td></tr>
+              <tr><td>장기 미국채 (TLT, 20+년)</td><td>40%</td><td>불황·디플레 때 가장 비싸짐</td></tr>
+              <tr><td>중기 미국채 (IEF, 7-10년)</td><td>15%</td><td>금리 변동 완충</td></tr>
+              <tr><td>금 (GLD)</td><td>7.5%</td><td>달러 가치 떨어질 때 방어</td></tr>
+              <tr><td>원자재 (DBC)</td><td>7.5%</td><td>인플레 호황 때 상승</td></tr>
+            </table>
+            <div class="fgbox">
+              📉 <b>실제 성과 (참고)</b>: 2008년 금융위기 때 S&P500은 −37%였지만, 올웨더는 약 <b>−3% 정도</b>로 막아냈어요.
+              평균 수익은 S&P500보다 작지만, <b>큰 손실 없이 꾸준</b>해서 초보자가 잠 잘 자고 오래 들고 갈 수 있어요.
+            </div>
+          </div>
+        </div>
+        <div class="divguide collapsed" id="strGuide2">
+          <div class="fgtoggle" onclick="toggleStrGuide('strGuide2','stArrow2')"><span id="stArrow2">▶</span> 🔄 ‘성장 + 배당’ 로테이션 — 오른 만큼의 절반은 되돌림한다 (클릭)</div>
+          <div class="fgbody">
+            <div class="fgbox">
+              📜 <b>유명한 시장 격언</b>: <b>"오른 만큼의 절반은 되돌림 한다"</b>.<br>
+              QQQ·테슬라·엔비디아가 +100% 갔으면, 어느 시점에 −30~−50%는 빠질 수 있다는 뜻이에요.
+              <b>벌었을 때 일부를 빼서 안전한 곳으로 옮기는 것</b>이 똑똑한 투자예요.
+            </div>
+            <div class="fgbox">
+              🍎 <b>아주 쉬운 비유</b><br>
+              사과나무에서 사과가 200개 열렸어요(=2배 오름). 100개를 따서 다른 밭(=배당 ETF)에 심어요.
+              나무에 100개 남았으니 다시 떨어져도 처음(100개)만큼은 있어요.
+              심어둔 밭에서는 <b>매달 사과가 나와요(=배당 현금흐름)</b> — 시장이 빠져도 굶지 않아요.
+            </div>
+            <h4 style="font-size:9.5pt;margin:8px 0 4px">📏 익절 규칙(예시)</h4>
+            <table class="fgtable">
+              <tr><th>오른 정도</th><th>익절 비율</th><th>해석</th></tr>
+              <tr><td>+50%</td><td>1/3 익절</td><td>일부는 챙기고 나머지는 더 가져가기</td></tr>
+              <tr><td>+100%</td><td>1/2 익절 (원금 회수)</td><td>이 시점이면 <b>‘무위험 구간’</b> — 빠져도 손해 없음</td></tr>
+              <tr><td>+200%</td><td>추가 1/3 익절</td><td>남은 건 보너스로 가는 것</td></tr>
+            </table>
+            <div class="fgbox">
+              💵 <b>익절한 돈은 어디로?</b><br>
+              ① <b>QQQI / JEPQ / SCHD</b> 같은 배당 ETF로 옮겨요 → <b>매달·매분기 배당이 통장에 들어와요</b>.<br>
+              ② 하락장이 와도 배당이 계속 들어오니 <b>심리적 여유</b>가 생기고, 그 돈으로 또 저가 매수도 가능.<br>
+              ③ 본진(성장주)이 다시 오르면 또 익절 → 또 배당 → <b>풍차돌리기</b>처럼 자산이 지속 늘어남.
+            </div>
+            <div class="fgbox" id="rotSim">
+              🧮 <b>익절금 → 월배당 시뮬</b><br>
+              <label>익절한 금액(원): <input type="number" id="rotAmt" value="50000000" step="any" oninput="updRot()" style="font-family:inherit;font-size:9.5pt;padding:3px 6px;border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg);width:140px;margin-left:4px"></label>
+              <div id="rotRes" style="margin-top:6px"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1161,13 +1270,14 @@ setInterval(()=>{ document.getElementById("clock").textContent=
 let curTab="home";
 function showTab(t){
   curTab=t;
-  ["home","insert","fut","div"].forEach(v=>{
+  ["home","insert","fut","div","str"].forEach(v=>{
     document.getElementById("view-"+v).classList.toggle("on",t===v);
     const tb=document.getElementById("tab-"+v); if(tb) tb.classList.toggle("active",t===v);
   });
   if(t==="home") homeRefresh();
   else if(t==="fut") futRefresh();
   else if(t==="div"){ renderDivCat(); if(!_divInited){ _divInited=true; calcDiv(); } }
+  else if(t==="str"){ if(!_strInited){ _strInited=true; renderStratPicker(); pickStrategy("allw"); updRot(); } }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
 }
 
@@ -2039,6 +2149,140 @@ function useDiv(sym){
   document.getElementById("dvSym").value=sym;
   calcDiv();
   setTimeout(()=>document.getElementById("dcout").scrollIntoView({behavior:"smooth",block:"start"}),150);
+}
+
+/* ============ 전략 탭 (올웨더·로테이션) ============ */
+let _strInited=false, _strPick="allw";
+function toggleStrGuide(boxId,arrId){
+  const d=document.getElementById(boxId);
+  const on=d.classList.toggle("collapsed");
+  const ar=document.getElementById(arrId); if(ar) ar.textContent=on?"▶":"▼";
+}
+const STRATEGIES=[
+  {id:"allw", t:"🌦️ 정통 올웨더", risk:"안정",
+    d:"레이 달리오의 사계절 포트폴리오. 큰 손실 거의 없이 꾸준 — 초보·장기 추천",
+    items:[
+      {sym:"VTI", nm:"미국 전체주식",  pct:30, why:"호황 엔진"},
+      {sym:"TLT", nm:"미국 장기채(20+)",pct:40, why:"불황·디플레 방어"},
+      {sym:"IEF", nm:"미국 중기채(7-10)",pct:15, why:"금리 완충"},
+      {sym:"GLD", nm:"금",             pct:7.5, why:"인플레·달러약세 방어"},
+      {sym:"DBC", nm:"원자재 종합",    pct:7.5, why:"인플레 호황 헤지"},
+    ]},
+  {id:"bal", t:"⚖️ 균형형 (올웨더+배당)", risk:"중간",
+    d:"올웨더 안정성에 월·분기 배당을 더해 매달 현금흐름까지",
+    items:[
+      {sym:"VTI",  nm:"미국 전체주식", pct:30, why:"성장"},
+      {sym:"SCHD", nm:"슈왑 배당성장", pct:15, why:"분기 배당+성장"},
+      {sym:"JEPQ", nm:"JPM 나스닥 프리미엄", pct:10, why:"월배당 9~10%"},
+      {sym:"TLT",  nm:"미국 장기채",   pct:25, why:"위기 방어"},
+      {sym:"IEF",  nm:"미국 중기채",   pct:10, why:"안정"},
+      {sym:"GLD",  nm:"금",            pct:7,  why:"인플레 헤지"},
+      {sym:"DBC",  nm:"원자재",        pct:3,  why:"인플레 호황"},
+    ]},
+  {id:"grow", t:"🚀 성장+배당 방어", risk:"공격",
+    d:"QQQ로 상승장 타고, 떨어질 때 QQQI/JEPQ 배당으로 버티는 공격+방어",
+    items:[
+      {sym:"QQQ",  nm:"나스닥100",      pct:40, why:"기술주 성장"},
+      {sym:"VOO",  nm:"S&P500",         pct:15, why:"미국 대형주 균형"},
+      {sym:"QQQI", nm:"NEOS Nasdaq 고수익", pct:15, why:"⭐ 하락장 현금흐름 13%+"},
+      {sym:"JEPQ", nm:"JPM 나스닥 프리미엄", pct:10, why:"⭐ 월배당 안정"},
+      {sym:"SCHD", nm:"슈왑 배당성장",  pct:10, why:"배당+소폭 성장"},
+      {sym:"GLD",  nm:"금",             pct:5,  why:"위기 방어"},
+      {sym:"TLT",  nm:"미국 장기채",    pct:5,  why:"폭락 방어"},
+    ]},
+  {id:"safe", t:"🛡️ 보수 배당중심", risk:"보수",
+    d:"주가 변동 최소화, 매달 받는 배당 극대화 (은퇴자·현금흐름 중심)",
+    items:[
+      {sym:"SCHD", nm:"슈왑 배당성장",  pct:25, why:"안정 분기배당"},
+      {sym:"JEPQ", nm:"JPM 나스닥 프리미엄", pct:15, why:"월배당 9~10%"},
+      {sym:"JEPI", nm:"JPM 프리미엄 인컴",   pct:15, why:"월배당 7~8% 안정"},
+      {sym:"O",    nm:"리얼티 인컴(REIT)",   pct:10, why:"월배당 부동산"},
+      {sym:"TLT",  nm:"미국 장기채",    pct:20, why:"채권 이자"},
+      {sym:"IEF",  nm:"미국 중기채",    pct:10, why:"안정"},
+      {sym:"GLD",  nm:"금",             pct:5,  why:"인플레 방어"},
+    ]}
+];
+function renderStratPicker(){
+  const el=document.getElementById("strpick");
+  el.innerHTML=STRATEGIES.map(s=>`<div class="strcard ${s.id===_strPick?'on':''}" onclick="pickStrategy('${s.id}')">
+    <div class="t">${s.t}</div><div class="d">${s.d}</div><div class="r ${s.risk}">${s.risk}</div></div>`).join("");
+}
+function pickStrategy(id){
+  _strPick=id;
+  renderStratPicker();
+  calcStrategy();
+}
+async function calcStrategy(){
+  const s=STRATEGIES.find(x=>x.id===_strPick); if(!s) return;
+  const amt=+document.getElementById("strAmt").value||0;
+  const cur=document.getElementById("strCur").value;
+  const out=document.getElementById("strOut");
+  out.innerHTML='<div style="padding:10px;color:var(--muted)">⏳ 시세를 불러오는 중…</div>';
+  await fetchRates().catch(()=>{});
+  const usdkrw=fxNow.USDKRW||1450;
+  const amtUSD = cur==="KRW"? amt/usdkrw : amt;
+  const amtKRW = cur==="KRW"? amt : amt*usdkrw;
+  // 배당 데이터 (캐시 활용 가능 — divCache)
+  await Promise.all(s.items.map(async it=>{
+    if(divCache[it.sym]) return;
+    try{ const d=await yDividends(it.sym);
+      divCache[it.sym]={price:d.price,annual:d.annual,yld:d.price?d.annual/d.price*100:0,freq:d.freq,cur:d.cur}; }
+    catch(e){ divCache[it.sym]={fail:true}; }
+  }));
+  document.getElementById("sbrief").textContent=`=ALLOCATE(${s.id.toUpperCase()}) · ${s.t} · ${s.items.length}자산 분산 (${s.risk})`;
+  let totAnnUSD=0, totFail=0;
+  const rows=s.items.map(it=>{
+    const c=divCache[it.sym]||{};
+    const allocUSD=amtUSD*it.pct/100;
+    const allocKRW=allocUSD*usdkrw;
+    if(c.fail||!c.price){ totFail++; return {it,fail:true,allocUSD,allocKRW}; }
+    const shares=allocUSD/c.price;
+    const annUSD=shares*(c.annual||0);
+    totAnnUSD+=annUSD;
+    return {it,c,allocUSD,allocKRW,shares,annUSD};
+  });
+  const totAnnKRW=totAnnUSD*usdkrw;
+  const totYld=amtUSD?totAnnUSD/amtUSD*100:0;
+  out.innerHTML=`<table class="sralloctab">
+    <tr><th>자산</th><th>비중</th><th>매수금</th><th>가격</th><th>주식수</th><th>연 배당(예상)</th><th>역할</th></tr>
+    ${rows.map(r=>`<tr>
+      <td><span class="sm">${r.it.nm}</span> <span style="color:var(--muted);font-size:7.5pt;font-family:monospace">${r.it.sym}</span></td>
+      <td class="num">${r.it.pct}%</td>
+      <td>₩${fmt(r.allocKRW,0)} <span class="ld">($${fmt(r.allocUSD,0)})</span></td>
+      <td>${r.fail?'<span class="ld">로딩 실패</span>':'$'+fmt(r.c.price,r.c.price<10?4:2)}</td>
+      <td>${r.fail?'-':fmt(r.shares,r.shares<10?2:0)+'주'}</td>
+      <td>${r.fail?'-':(r.annUSD>0?'₩'+fmt(r.annUSD*usdkrw,0)+' <span class="ld">($'+fmt(r.annUSD,0)+')</span>':'<span class="ld">배당 없음/소량</span>')}</td>
+      <td>${r.it.why}</td>
+    </tr>`).join('')}
+    <tfoot><tr><td colspan="2">합계 100%</td>
+      <td>₩${fmt(amtKRW,0)} <span class="ld">($${fmt(amtUSD,0)})</span></td>
+      <td>-</td><td>-</td>
+      <td>₩${fmt(totAnnKRW,0)} <span class="ld">($${fmt(totAnnUSD,0)})</span></td>
+      <td>총 수익률 ${fmt(totYld,2)}%</td>
+    </tr></tfoot>
+    </table>
+    <div class="stsum">
+      <div class="ocard"><div class="ol">월 평균 배당</div><div class="ov" style="color:var(--up)">₩${fmt(totAnnKRW/12,0)}</div></div>
+      <div class="ocard"><div class="ol">연 배당</div><div class="ov">₩${fmt(totAnnKRW,0)}</div></div>
+      <div class="ocard"><div class="ol">평균 수익률</div><div class="ov">${fmt(totYld,2)}%</div></div>
+      ${totFail?`<div class="ocard warn"><div class="ol">시세 로딩 실패</div><div class="ov">${totFail}개</div></div>`:''}
+    </div>`;
+}
+function updRot(){
+  const amt=+(document.getElementById("rotAmt")||{}).value||0;
+  const res=document.getElementById("rotRes"); if(!res) return;
+  const usdkrw=fxNow.USDKRW||1450;
+  const qq=divCache["QQQI"], je=divCache["JEPQ"], sc=divCache["SCHD"];
+  const calc=(c,nm)=>{
+    if(!c||c.fail||!c.price) return `${nm}: <span style="color:var(--muted)">로딩 후 확인</span>`;
+    const amtUSD=amt/usdkrw, shares=amtUSD/c.price, monKRW=shares*(c.annual/12)*usdkrw;
+    return `${nm} (${fmt(c.yld||0,2)}%): 주식 ${fmt(shares,shares<10?2:0)}개 → 매달 <b style="color:var(--up)">₩${fmt(monKRW,0)}</b>`;
+  };
+  res.innerHTML=`<b>익절금 ₩${fmt(amt,0)}을(를)…</b><br>
+    • ${calc(qq,"QQQI")}<br>
+    • ${calc(je,"JEPQ")}<br>
+    • ${calc(sc,"SCHD")}<br>
+    <span style="color:var(--muted);font-size:8pt">⚠️ 주가·배당이 그대로 유지된다는 가정 · 세금/수수료 미반영</span>`;
 }
 function toggleDivGuide(){
   const d=document.getElementById("divguide");
