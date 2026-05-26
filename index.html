@@ -270,6 +270,27 @@
   #futGrid tr.sum td{background:#fff4d6;font-weight:700}
   body.dark #futGrid tr.sum td{background:#3a3320}
   #futGrid tr.lot:nth-child(even) td{background:var(--band)}
+  /* ===== Dividend: 배당 ===== */
+  #view-div.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
+  .divcalc{background:var(--hdr-bg);border-bottom:1px solid var(--grid);padding:10px}
+  .dcrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+  .dcrow label{display:flex;flex-direction:column;font-size:7.5pt;color:var(--muted);gap:3px;position:relative}
+  .dcrow label>input,.dcrow select{font-family:inherit;font-size:9.5pt;padding:4px 6px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .dcrow input[type=text]{width:140px}.dcrow input[type=number]{width:140px}
+  .dcrow .suf{position:absolute;right:6px;bottom:5px;font-size:8pt;color:var(--muted)}
+  .dcout{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:9pt;color:var(--fg)}
+  .divwrap{overflow:auto;flex:1;min-height:90px;padding:0}
+  .dbody{padding:10px}
+  .dvtable{border-collapse:collapse;width:100%;font-size:8.5pt;margin:8px 0}
+  .dvtable th,.dvtable td{border:1px solid var(--grid);padding:5px 9px;text-align:center}
+  .dvtable th{background:var(--ribbon);color:#fff}
+  .dvtable td:first-child{background:var(--band);font-weight:600}
+  .divguide{border:1px solid var(--grid);border-radius:6px;padding:7px 9px;margin-bottom:10px}
+  .divguide.collapsed .fgbody{display:none}
+  .dvsimbox{background:var(--cell-bg);border:2px solid var(--ribbon);border-radius:6px;
+    padding:11px 14px;margin:10px 0;line-height:1.75;font-size:9.5pt}
+  .dvsimbox h3{font-size:10pt;margin-bottom:6px;color:var(--ribbon)}
   /* ===== Sheet tabs ===== */
   .sheettabs{height:0}
   @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}
@@ -293,6 +314,7 @@
     <span id="tab-home" class="active" onclick="showTab('home')">홈</span>
     <span id="tab-insert" onclick="showTab('insert')">삽입</span>
     <span id="tab-fut" onclick="showTab('fut')">선물</span>
+    <span id="tab-div" onclick="showTab('div')">배당</span>
     <span onclick="showTab('insert')">수식</span><span onclick="showTab('insert')">데이터</span>
     <span onclick="showTab('home')">보기</span>
   </div>
@@ -544,6 +566,60 @@
       <span>총 명목가 <b id="fst-notional">-</b></span>
       <span>미실현손익 <b class="big" id="fst-pnl">-</b></span>
       <span style="margin-left:auto" id="fst-rate">바이낸스 선물 로딩중…</span>
+    </div>
+  </div>
+
+  <!-- ===================== 배당: 한주당 배당·풍차돌리기 ===================== -->
+  <div id="view-div" class="view">
+    <div class="divcalc">
+      <div class="dcrow">
+        <label>종목<span class="hlp" data-tip="배당 주식·ETF 코드. QQQI(월배당)·JEPQ·JEPI·SCHD·O 등.">?</span>
+          <input type="text" id="dvSym" value="QQQI" placeholder="예: QQQI" oninput="this._t=this.value">
+        </label>
+        <label>투자금액
+          <input type="number" id="dvAmt" value="100000000" step="any">
+        </label>
+        <select id="dvCur">
+          <option value="KRW">₩ 원화</option>
+          <option value="USD">$ 달러</option>
+        </select>
+        <label>풍차돌리기 기간<input type="number" id="dvYears" value="10" min="1" max="40"><span class="suf">년</span></label>
+        <button class="btn" onclick="calcDiv()">조회</button>
+      </div>
+      <div class="dcout" id="dcout">종목과 투자금액을 넣고 <b>조회</b>를 누르세요. (기본: QQQI · 1억원 · 10년 풍차)</div>
+    </div>
+    <div class="fbar">
+      <div class="namebox">A1</div><div class="fx"><i>fx</i></div>
+      <div class="content" id="dbrief">=DIVIDEND() · 한주당 배당과 풍차돌리기 계산</div>
+    </div>
+    <div class="sheetwrap divwrap">
+      <div class="dbody" id="dbody">
+        <div class="divguide" id="divguide">
+          <div class="fgtoggle" onclick="toggleDivGuide()"><span id="dgArrow">▼</span> 📖 처음이라면? — 배당과 풍차돌리기는 뭘까? (클릭으로 접기)</div>
+          <div class="fgbody" id="dgbody">
+            <div class="fgbox">
+              🍎 <b>아주 쉬운 비유</b><br>
+              주식 한 주를 사는 건 <b>사과나무 한 그루를 사는 것</b>과 같아요.<br>
+              매년(또는 매달) 사과나무에서 <b>사과(=배당금)</b>가 나와요.
+              사과 개수 = 한 주당 배당금. 사과나무 그루 = 가진 주식 수.
+            </div>
+            <div class="fgbox">
+              🌪️ <b>풍차돌리기</b> = 받은 사과(배당)를 팔아서 <b>또 사과나무를 사기</b> 반복하는 것.<br>
+              처음 1그루였는데 매년 사과를 받아 또 사니까 → 2그루 → 3그루…
+              나무가 늘어나니 <b>매년 받는 사과도 점점 많아져요</b> (복리).
+            </div>
+            <div class="fgbox">
+              💡 <b>알아두기</b><br>
+              • 모든 주식이 배당을 주진 않아요. <b>QQQI·JEPQ·JEPI</b>는 매달, <b>SCHD·코카콜라(KO)</b>는 분기(3개월)마다 줘요.<br>
+              • 한국은 보통 1년에 1~2번 줘요.<br>
+              • 배당수익률 = 1년 배당금 ÷ 주가. 10%면 1년에 원금의 10%를 사과로 돌려줘요.<br>
+              • ⚠️ 배당은 보장된 게 아니에요. 회사가 줄이거나 안 줄 수도 있고, 주가가 떨어지면 사과 받아도 손해일 수 있어요.
+            </div>
+          </div>
+        </div>
+        <div id="dvHist"></div>
+        <div id="dvSim"></div>
+      </div>
     </div>
   </div>
 
@@ -1059,12 +1135,13 @@ setInterval(()=>{ document.getElementById("clock").textContent=
 let curTab="home";
 function showTab(t){
   curTab=t;
-  ["home","insert","fut"].forEach(v=>{
+  ["home","insert","fut","div"].forEach(v=>{
     document.getElementById("view-"+v).classList.toggle("on",t===v);
     const tb=document.getElementById("tab-"+v); if(tb) tb.classList.toggle("active",t===v);
   });
   if(t==="home") homeRefresh();
   else if(t==="fut") futRefresh();
+  else if(t==="div"){ if(!_divInited){ _divInited=true; calcDiv(); } }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
 }
 
@@ -1787,6 +1864,118 @@ function defUpdate(){
       plan.innerHTML=h;
     }
   }
+}
+
+/* ============ 배당 탭 ============ */
+let _divInited=false;
+function toggleDivGuide(){
+  const d=document.getElementById("divguide");
+  const on=d.classList.toggle("collapsed");
+  document.getElementById("dgArrow").textContent=on?"▶":"▼";
+}
+/* Yahoo 배당 이력 (events=div) */
+async function yDividends(sym){
+  const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=2y&interval=1d&events=div`;
+  const j=await jget(u);
+  const r=j?.chart?.result?.[0]; const m=r?.meta;
+  if(!m||m.regularMarketPrice==null) throw new Error("no data "+sym);
+  const divs=r?.events?.dividends||{};
+  const arr=Object.values(divs).map(d=>({date:new Date(d.date*1000).toISOString().slice(0,10),ts:d.date,amt:d.amount})).sort((a,b)=>a.ts-b.ts);
+  const now=Date.now()/1000, yrAgo=now-365*86400;
+  const last12=arr.filter(d=>d.ts>yrAgo);
+  const annual=last12.reduce((s,x)=>s+x.amt,0);
+  let freq="?", payments=0;
+  if(arr.length>=2){
+    const gaps=[]; for(let i=1;i<arr.length;i++) gaps.push((arr[i].ts-arr[i-1].ts)/86400);
+    const avgGap=gaps.reduce((s,x)=>s+x,0)/gaps.length;
+    if(avgGap<45){freq="월";payments=12;}
+    else if(avgGap<120){freq="분기";payments=4;}
+    else if(avgGap<200){freq="반기";payments=2;}
+    else {freq="연";payments=1;}
+  }
+  return {sym, price:m.regularMarketPrice, cur:m.currency||"USD",
+          history:arr, last12, annual, freq, payments,
+          name:m.shortName||m.longName||sym};
+}
+function fmtKRW(v){ return "₩"+fmt(v,0); }
+function fmtUSD(v){ return "$"+fmt(v, v<1?4:2); }
+async function calcDiv(){
+  const sym=document.getElementById("dvSym").value.trim().toUpperCase()||"QQQI";
+  const amt=+document.getElementById("dvAmt").value||0;
+  const curIn=document.getElementById("dvCur").value;
+  const years=Math.max(1,Math.min(40,+document.getElementById("dvYears").value||10));
+  const out=document.getElementById("dcout");
+  const hist=document.getElementById("dvHist");
+  const sim=document.getElementById("dvSim");
+  out.innerHTML='<span style="color:var(--muted)">⏳ 불러오는 중…</span>';
+  hist.innerHTML=""; sim.innerHTML="";
+  let d;
+  try{ d=await yDividends(sym); }catch(e){
+    out.innerHTML=`<span class="warn2" style="background:#fdeaea;padding:4px 8px;border-radius:4px">‘${sym}’ 종목을 못 찾았습니다. 코드를 확인하세요(예: QQQI, JEPQ, SCHD, KO).</span>`;
+    return;
+  }
+  if(!d.history.length){
+    out.innerHTML=`<span class="warn2" style="background:#fdeaea;padding:4px 8px;border-radius:4px">‘${sym}’은 최근 2년간 배당 기록이 없어요. 배당주가 아닐 수 있어요.</span>`;
+    document.getElementById("dbrief").textContent=`=DIVIDEND(${sym}) · 배당 기록 없음`;
+    return;
+  }
+  await fetchRates().catch(()=>{});
+  const usdkrw=fxNow.USDKRW||1450;
+  // 투자금액을 USD로 환산
+  const amtUSD = curIn==="KRW" ? (amt/usdkrw) : amt;
+  const amtKRW = curIn==="KRW" ? amt : amt*usdkrw;
+  const shares = d.price>0 ? amtUSD/d.price : 0;
+  const annualDivUSD = shares*d.annual;       // 연 배당 (USD)
+  const monthlyDivUSD = annualDivUSD/12;
+  const perShareMonthly = d.annual/12;
+  const yieldPct = d.price>0 ? d.annual/d.price*100 : 0;
+  // 풍차돌리기 (월 복리, 가격·배당 동일 가정)
+  const monthlyRate = yieldPct/100/12;        // 월 복리율
+  const months = years*12;
+  const sharesEnd = shares * Math.pow(1+monthlyRate, months);
+  const monthlyEndUSD = sharesEnd * perShareMonthly;
+  // 연차별 마일스톤
+  const milestones=[1,3,5,10].filter(y=>y<=years);
+  if(!milestones.includes(years)) milestones.push(years);
+  const cardHTML=(l,v,cls)=>`<div class="ocard ${cls||''}"><div class="ol">${l}</div><div class="ov">${v}</div></div>`;
+  out.innerHTML=
+    cardHTML("종목",`${d.sym} <span style="font-size:8pt;color:var(--muted);font-weight:400">${d.name}</span>`)+
+    cardHTML("현재가",fmtUSD(d.price))+
+    cardHTML("배당주기",`${d.freq} (연 ${d.payments||"?"}회)`)+
+    cardHTML("한주당 배당",`연 ${fmtUSD(d.annual)} <span style="font-size:8pt;color:var(--muted);font-weight:400">/월 ${fmtUSD(perShareMonthly)}</span>`)+
+    cardHTML("배당수익률",`<span style="color:var(--up)">${fmt(yieldPct,2)}%</span>`,"")+
+    cardHTML("살 수 있는 주식",`${fmt(shares,shares<10?2:0)}주`)+
+    cardHTML("월 배당금",`<b style="color:var(--up)">${fmtKRW(monthlyDivUSD*usdkrw)}</b> <span style="font-size:8pt;color:var(--muted);font-weight:400">(${fmtUSD(monthlyDivUSD)})</span>`)+
+    cardHTML("연 배당금",`${fmtKRW(annualDivUSD*usdkrw)} <span style="font-size:8pt;color:var(--muted);font-weight:400">(${fmtUSD(annualDivUSD)})</span>`);
+  document.getElementById("dbrief").textContent=
+    `=DIVIDEND(${d.sym}) · ${d.name} · 배당주기 ${d.freq} · 수익률 ${fmt(yieldPct,2)}% · 한주당 연 ${fmtUSD(d.annual)}`;
+  // 배당 이력 표 (최근 12)
+  const recent=d.history.slice(-12).reverse();
+  hist.innerHTML=`<h3 style="font-size:10pt;margin:8px 0 4px">📅 최근 배당 이력 (${recent.length}건)</h3>
+    <table class="dvtable"><tr><th>날짜</th><th>한주당</th><th>1억치(${fmt(shares,shares<10?2:0)}주) 받았다면</th></tr>`+
+    recent.map(h=>`<tr><td>${h.date}</td><td>${fmtUSD(h.amt)}</td><td>${fmtKRW(h.amt*shares*usdkrw)} <span style="color:var(--muted);font-size:7.5pt">(${fmtUSD(h.amt*shares)})</span></td></tr>`).join("")
+    +`</table>`;
+  // 풍차돌리기 시뮬레이션
+  const rows=milestones.map(y=>{
+    const m=y*12;
+    const sN=shares*Math.pow(1+monthlyRate,m);
+    const monKRW=sN*perShareMonthly*usdkrw;
+    const annKRW=sN*d.annual*usdkrw;
+    return {y,sN,monKRW,annKRW};
+  });
+  const cur=curIn==="KRW"?"₩":"$";
+  sim.innerHTML=`<div class="dvsimbox">
+    <h3>🌪️ 풍차돌리기 — ${d.sym}에 ${cur}${fmt(amt,0)} 투자 후 받은 배당으로 또 사기 반복</h3>
+    🍎 <b>지금 상황</b>: ${fmtKRW(amtKRW)}로 <b>${fmt(shares,shares<10?2:0)}주</b>를 사면 매달 약 <b style="color:var(--up)">${fmtKRW(monthlyDivUSD*usdkrw)}</b>씩 통장에 들어와요.<br>
+    이걸 매달 그 주식으로 다시 사면 주식이 점점 늘어나서…
+    <table class="dvtable"><tr><th>몇 년 후</th><th>가진 주식</th><th>매달 받는 배당</th><th>1년 동안 받는 돈</th></tr>`
+    + rows.map(r=>`<tr><td><b>${r.y}년</b> 후</td><td>${fmt(r.sN,r.sN<10?2:0)}주 (처음의 ${fmt(r.sN/shares,2)}배)</td>
+      <td><b style="color:var(--up)">${fmtKRW(r.monKRW)}</b></td>
+      <td>${fmtKRW(r.annKRW)}</td></tr>`).join("")
+    + `</table>
+    💡 <b>${years}년 후</b> 매달 받는 배당은 <b style="color:var(--up)">${fmtKRW(monthlyEndUSD*usdkrw)}</b> (처음의 ${fmt(sharesEnd/shares,2)}배!) — 사과나무가 ${fmt(sharesEnd/shares,1)}배로 늘어났어요.<br>
+    <span style="color:var(--muted);font-size:8.5pt">⚠️ 주가·배당이 그대로 유지된다는 가정 + 세금/수수료 미반영. 실제는 더 많거나 적을 수 있어요. 배당이 줄거나 주가가 빠지면 손실도 가능.</span>
+  </div>`;
 }
 
 render();
