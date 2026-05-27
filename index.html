@@ -361,6 +361,31 @@
   .sralloctab tfoot td{background:var(--band);font-weight:700}
   .stsum{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
   .stsum .ocard{min-width:120px}
+  /* 투자 성향 진단 설문 */
+  .quiz{margin:8px 10px;border:2px solid var(--ribbon);border-radius:6px;background:var(--cell-bg)}
+  .quiz.collapsed .qzbody{display:none}
+  .qzhead{padding:9px 12px;cursor:pointer;font-size:9.5pt;font-weight:700;background:var(--band);
+    user-select:none;border-radius:4px}
+  .qzhead:hover{background:var(--hdr-bg)}
+  .qzhead .ar{display:inline-block;width:14px;color:var(--ribbon)}
+  .qzhead .hint{font-weight:400;font-size:8pt;color:var(--muted);margin-left:6px}
+  .qzbody{padding:8px 12px 12px}
+  .qzprog{font-size:8.5pt;color:var(--muted);margin:5px 0}
+  .qzq{margin:8px 0;padding:8px 10px;border:1px solid var(--grid);border-radius:5px;background:var(--cell-bg)}
+  .qzq .qn{font-weight:600;font-size:9pt;margin-bottom:6px;color:var(--ribbon)}
+  .qzq .qt{font-size:9pt;margin-bottom:6px}
+  .qzopts{display:flex;flex-wrap:wrap;gap:5px}
+  .qzopt{flex:1;min-width:120px;padding:6px 9px;border:1px solid var(--grid);border-radius:4px;
+    background:var(--cell-bg);cursor:pointer;font-size:8.5pt;line-height:1.3;text-align:center;
+    font-family:inherit;color:var(--fg);transition:all .1s}
+  .qzopt:hover{background:var(--band)}
+  .qzopt.on{background:var(--ribbon);color:#fff;border-color:var(--ribbon);font-weight:600}
+  .qzbtns{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .qzresult{margin-top:10px;padding:12px 14px;border:2px solid var(--up);border-radius:6px;
+    background:#fff4e0;display:none;line-height:1.65;font-size:9.5pt}
+  body.dark .qzresult{background:#3a2e1c}
+  .qzresult.on{display:block}
+  .qzresult b{color:var(--up)}
   /* ===== Sheet tabs ===== */
   .sheettabs{height:0}
   @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}
@@ -698,6 +723,11 @@
 
   <!-- ===================== 전략: 올웨더·성장+배당 로테이션 ===================== -->
   <div id="view-str" class="view">
+    <div class="quiz collapsed" id="quizPanel">
+      <div class="qzhead" onclick="toggleQuiz()"><span class="ar" id="qzArrow">▶</span>
+        🧭 투자 성향 진단 (12문제) <span class="hint">— 본인의 성향을 모르겠으면 먼저 풀어보세요. 결과에 맞춰 전략을 자동 추천합니다</span></div>
+      <div class="qzbody" id="qzbody"></div>
+    </div>
     <div class="strpick" id="strpick"></div>
     <div class="stralloc">
       <div class="srrow">
@@ -2086,20 +2116,29 @@ const DIV_CAT=[
       {sym:"030200.KS", nm:"KT",             br:"통신"},
       {sym:"011200.KS", nm:"HMM",            br:"해운"},
     ]},
-  {id:"trump", title:"🇺🇸 트럼프 트레이드 (Trump Trade)",
-    desc:"트럼프 행정부 정책 수혜 종목·ETF. 정책·뉴스에 따라 변동성 큼 ⚠️",
+  {id:"trump", title:"🇺🇸 트럼프 ETF (Truth.Fi 직접 발행 5종)",
+    desc:"TMTG(트럼프 미디어 & 테크놀로지)가 직접 출시한 Truth.Fi 시리즈 ETF 5종. NYSE Arca 상장",
     items:[
-      {sym:"DJT",  nm:"트럼프 미디어 & 테크",  br:"Truth Social 모회사. ⚠️ 단일주, 변동성 극심. 배당 없음"},
-      {sym:"MAGA", nm:"Point Bridge America First", br:"공화당 친화 기업 바스켓 ETF"},
-      {sym:"YALL", nm:"God Bless America",      br:"보수 성향 기업 ETF"},
-      {sym:"URA",  nm:"Global X Uranium",       br:"우라늄·원자력. 친원자력 정책 수혜"},
-      {sym:"NUKZ", nm:"Range Nuclear Renaissance", br:"원자력 르네상스 테마"},
-      {sym:"XLE",  nm:"에너지 섹터 (Energy)",   br:"석유·가스. 화석연료 친화 정책. 분기배당"},
-      {sym:"XOP",  nm:"S&P 석유·가스 시추",     br:"미국 셰일·시추 기업"},
-      {sym:"ITA",  nm:"iShares 항공우주·방산",  br:"국방예산 증가 수혜"},
-      {sym:"IBIT", nm:"iShares Bitcoin ETF",    br:"비트코인 현물. 친암호화폐 정책"},
-      {sym:"BITO", nm:"ProShares Bitcoin",      br:"비트코인 선물 ETF (월배당)"},
-      {sym:"MSTR", nm:"MicroStrategy",          br:"비트코인 대량 보유 회사. ⚠️ 변동성 큼"},
+      {sym:"TSRS", nm:"American Red State",        br:"공화당 우세 주(州)에 본사·주요 사업이 있는 기업 묶음"},
+      {sym:"TSES", nm:"American Energy Securities", br:"미국 에너지(석유·가스·원자력) 기업"},
+      {sym:"TSSD", nm:"American Security",          br:"방산·국가안보·국경 보안 관련 기업"},
+      {sym:"TSNF", nm:"American Next Frontier",     br:"혁신·차세대 기술(AI·크립토·우주 등) 기업"},
+      {sym:"TSIC", nm:"American Icons",             br:"미국 대표 우량 아이콘 기업"},
+    ]},
+  {id:"theme", title:"🏛️ 트럼프 정책 수혜 테마 (트럼프가 발행한 ETF 아님)",
+    desc:"트럼프 행정부 정책에 영향받는 다른 회사·ETF (제3자 발행). ‘트럼프 ETF’와 자주 혼동되어 분리",
+    items:[
+      {sym:"DJT",  nm:"트럼프 미디어 & 테크",      br:"Truth Social 모회사 (단일주). ⚠️ 변동성 극심, 배당 없음"},
+      {sym:"MAGA", nm:"Point Bridge America First", br:"공화당 친화 기업 바스켓 (제3자 발행)"},
+      {sym:"YALL", nm:"God Bless America",          br:"보수 성향 기업 ETF (제3자 발행)"},
+      {sym:"URA",  nm:"Global X Uranium",           br:"우라늄·원자력. 친원자력 정책 수혜"},
+      {sym:"NUKZ", nm:"Range Nuclear Renaissance",  br:"원자력 르네상스 테마"},
+      {sym:"XLE",  nm:"에너지 섹터 (Energy)",       br:"석유·가스. 화석연료 친화 정책. 분기배당"},
+      {sym:"XOP",  nm:"S&P 석유·가스 시추",         br:"미국 셰일·시추 기업"},
+      {sym:"ITA",  nm:"iShares 항공우주·방산",      br:"국방예산 증가 수혜"},
+      {sym:"IBIT", nm:"iShares Bitcoin ETF",        br:"비트코인 현물. 친암호화폐 정책"},
+      {sym:"BITO", nm:"ProShares Bitcoin",          br:"비트코인 선물 ETF (월배당)"},
+      {sym:"MSTR", nm:"MicroStrategy",              br:"비트코인 대량 보유 회사. ⚠️ 변동성 큼"},
     ]},
   {id:"idx", title:"📈 비교용: 지수·성장 ETF (배당 적음)",
     desc:"배당보다 주가 상승이 목적. 배당수익률 1~2% 정도예요. 'QLD/TQQQ 같은 레버리지는 배당 거의 없음'",
@@ -2258,8 +2297,83 @@ const STRATEGIES=[
       {sym:"TLT",  nm:"미국 장기채",    pct:20, why:"채권 이자"},
       {sym:"IEF",  nm:"미국 중기채",    pct:10, why:"안정"},
       {sym:"GLD",  nm:"금",             pct:5,  why:"인플레 방어"},
+    ]},
+  {id:"ultra", t:"🔥 극공격 성장 (레버리지)", risk:"극공격",
+    d:"TQQQ·QLD 레버리지로 상승장 극대화 + QQQI 안전판. ⚠️ 변동성 손실(decay)·하락장 큰 손실 가능",
+    items:[
+      {sym:"TQQQ", nm:"나스닥100 3배 레버리지", pct:25, why:"⭐ 상승장 폭발 — 변동성 손실 주의 ⚠️"},
+      {sym:"QLD",  nm:"나스닥100 2배 레버리지", pct:20, why:"⭐ 2배 성장 (TQQQ보다 안전)"},
+      {sym:"QQQ",  nm:"나스닥100",              pct:20, why:"베이스 성장 엔진"},
+      {sym:"NVDA", nm:"엔비디아",               pct:8,  why:"AI 핵심 단일주"},
+      {sym:"TSLA", nm:"테슬라",                 pct:7,  why:"EV·자율주행"},
+      {sym:"IBIT", nm:"비트코인 ETF",           pct:5,  why:"크립토 노출"},
+      {sym:"QQQI", nm:"NEOS 나스닥 고수익",      pct:10, why:"📌 하락장 현금흐름 안전판"},
+      {sym:"GLD",  nm:"금",                     pct:5,  why:"폭락 방어 최소 비중"},
     ]}
 ];
+/* 종목 한 줄 설명 — 툴팁용 (?로 마우스 오버 시 표시) */
+const STOCK_INFO={
+  "VOO":"뱅가드 S&P500 — 미국 대표 500개 회사. 안정·장기 핵심. 배당 ~1.3%",
+  "SPY":"SPDR S&P500 — S&P500 원조 ETF. 배당 ~1.2%",
+  "QQQ":"인베스코 나스닥100 — 미국 기술주 100선. 배당 ~0.5%",
+  "QQQM":"인베스코 Q — QQQ 저비용 버전",
+  "VTI":"뱅가드 미국 전체시장 — 미국 주식 거의 전부(3,800종). 배당 ~1.3%",
+  "TQQQ":"⚠️ 나스닥100 3배 레버리지 — 나스닥 1%↑면 3%↑/-3%↓. 장기 보유 시 변동성 손실(decay). 단기·일부 비중만",
+  "QLD":"⚠️ 나스닥100 2배 레버리지 — 2배 변동. TQQQ보다 안전하지만 여전히 장기 보유 부적합",
+  "SSO":"⚠️ S&P500 2배 레버리지",
+  "UPRO":"⚠️ S&P500 3배 레버리지",
+  "NVDA":"엔비디아 — AI 반도체 1위. 변동성 큰 성장주",
+  "TSLA":"테슬라 — 전기차·자율주행. 변동성 매우 큼",
+  "TLT":"iShares 20+년 미국 국채 — 장기 채권. 금리 하락 시 가격↑, 월배당",
+  "IEF":"iShares 7-10년 미국 국채 — 중기 채권. 변동성 작고 안정. 월배당",
+  "GLD":"SPDR 금 ETF — 실물 금 가격 추종. 인플레·달러 약세 방어",
+  "IAU":"iShares 금 ETF — GLD보다 운용보수 낮음",
+  "DBC":"인베스코 원자재 종합 — 원유·금속·곡물 묶음. 인플레 호황 헤지",
+  "SCHD":"슈왑 미국배당주 — 질좋은 배당 100선. 분기배당+성장. 초보 추천",
+  "DGRO":"iShares 배당성장 — 매년 배당 올리는 미국주",
+  "VIG":"뱅가드 배당성장 — 10년+ 배당 인상 회사들",
+  "VYM":"뱅가드 고배당 — 미국 고배당 종합",
+  "HDV":"iShares 핵심 고배당 75선",
+  "NOBL":"S&P 배당귀족 — 25년+ 배당 인상",
+  "QQQI":"NEOS Nasdaq100 고수익 — 나스닥 옵션매도로 월배당 연 13%+",
+  "JEPQ":"JPM 나스닥 프리미엄 인컴 — 나스닥 옵션. 월배당 연 9~10%",
+  "JEPI":"JPM 프리미엄 인컴 — S&P500 옵션. 월배당 연 7~8% 안정",
+  "SPYI":"NEOS S&P500 고수익 — S&P500 옵션 월배당 12%+",
+  "FEPI":"FT 빅테크 인컴 — 빅테크 옵션 월배당 25%+ (변동성 큼)",
+  "BTCI":"NEOS 비트코인 인컴 — BTC 옵션 월배당 (변동성 매우 큼)",
+  "YMAX":"⚠️⚠️ YieldMax 종합 — 단일종목 옵션 ETF 묶음. 원금 손실 위험 매우 큼",
+  "NVDY":"⚠️ YieldMax NVDA — 엔비디아 콜 매도 월배당 ~50%",
+  "MSTY":"⚠️⚠️ YieldMax MSTR — 마이크로스트레티지 콜 매도. 극변동",
+  "O":"리얼티 인컴 — 월배당의 대명사. 56년+ 매년 인상. 연 ~5%",
+  "VICI":"VICI 프로퍼티스 — 카지노·호텔 부동산 REIT",
+  "AGNC":"AGNC — 모기지 REIT. 월배당 14%+ (변동성 큼)",
+  "STAG":"STAG — 산업·물류 부동산 월배당",
+  "MAIN":"메인 스트리트 — BDC. 월배당+보너스",
+  "KO":"코카콜라 — 60년+ 매년 배당 인상. 버핏 종목",
+  "JNJ":"존슨앤존슨 — 의료·제약 60년+ 배당",
+  "PG":"P&G — 생활용품 60년+",
+  "PEP":"펩시코 — 음료·과자 50년+",
+  "MMM":"3M — 산업·접착제 60년+",
+  "TSRS":"Truth.Fi American Red State — 공화당 우세 주 기업. TMTG 발행",
+  "TSES":"Truth.Fi American Energy Securities — 미국 에너지. TMTG 발행",
+  "TSSD":"Truth.Fi American Security — 방산·국가안보. TMTG 발행",
+  "TSNF":"Truth.Fi American Next Frontier — 혁신·차세대 기술. TMTG 발행",
+  "TSIC":"Truth.Fi American Icons — 미국 대표 우량주. TMTG 발행",
+  "DJT":"트럼프 미디어 — Truth Social 모회사 단일주. ⚠️ 극변동",
+  "MAGA":"Point Bridge America First — 공화당 친화 (제3자 발행)",
+  "YALL":"God Bless America — 보수 성향 (제3자 발행)",
+  "URA":"Global X Uranium — 우라늄·원자력 ETF",
+  "NUKZ":"Range Nuclear Renaissance — 원자력 테마",
+  "XLE":"에너지 섹터 SPDR — 미국 석유·가스 대형주",
+  "XOP":"S&P 석유·가스 시추 — 미국 셰일",
+  "ITA":"iShares 항공우주·방산",
+  "IBIT":"iShares Bitcoin ETF — 비트코인 현물 (블랙록)",
+  "BITO":"ProShares Bitcoin — 비트코인 선물 ETF (월배당)",
+  "MSTR":"MicroStrategy — 비트코인 대량 보유 회사. ⚠️ 극변동"
+};
+function tipFor(sym){
+  return STOCK_INFO[sym]||null;
+}
 function renderStratPicker(){
   const el=document.getElementById("strpick");
   el.innerHTML=STRATEGIES.map(s=>`<div class="strcard ${s.id===_strPick?'on':''}" onclick="pickStrategy('${s.id}')">
@@ -2304,7 +2418,7 @@ async function calcStrategy(){
   out.innerHTML=`<table class="sralloctab">
     <tr><th>자산</th><th>비중</th><th>매수금</th><th>가격</th><th>주식수</th><th>연 배당(예상)</th><th>역할</th></tr>
     ${rows.map(r=>`<tr>
-      <td><span class="sm">${r.it.nm}</span> <span style="color:var(--muted);font-size:7.5pt;font-family:monospace">${r.it.sym}</span></td>
+      <td><span class="sm">${r.it.nm}</span> <span style="color:var(--muted);font-size:7.5pt;font-family:monospace">${r.it.sym}</span>${tipFor(r.it.sym)?`<span class="hlp" data-tip="${esc(tipFor(r.it.sym))}">?</span>`:""}</td>
       <td class="num">${r.it.pct}%</td>
       <td>₩${fmt(r.allocKRW,0)} <span class="ld">($${fmt(r.allocUSD,0)})</span></td>
       <td>${r.fail?'<span class="ld">로딩 실패</span>':'$'+fmt(r.c.price,r.c.price<10?4:2)}</td>
@@ -2326,6 +2440,107 @@ async function calcStrategy(){
       ${totFail?`<div class="ocard warn"><div class="ol">시세 로딩 실패</div><div class="ov">${totFail}개</div></div>`:''}
     </div>`;
 }
+/* ============ 투자 성향 진단 설문 ============ */
+const QUIZ=[
+  {q:"연령대는?", opts:[
+    {t:"50대 이상", s:1},{t:"40~50대", s:2},{t:"30~40대", s:3},{t:"20~30대", s:4}]},
+  {q:"투자 경험은?", opts:[
+    {t:"처음 (0년)", s:1},{t:"1~2년", s:2},{t:"3~5년", s:3},{t:"5년 이상", s:4}]},
+  {q:"이 돈을 얼마나 묻어둘 수 있나요?", opts:[
+    {t:"1년 이내", s:1},{t:"1~3년", s:2},{t:"3~7년", s:3},{t:"7년 이상", s:4}]},
+  {q:"투자 목적은?", opts:[
+    {t:"원금 지키기", s:1},{t:"인플레만 방어", s:2},{t:"꾸준한 성장", s:3},{t:"공격적 자산 증식", s:4}]},
+  {q:"한 종목이 −50% 떨어지면 마음은?", opts:[
+    {t:"잠 못 잘 듯", s:1},{t:"걱정되지만 버팀", s:2},{t:"기회로 봄", s:3},{t:"즉시 추가매수", s:4}]},
+  {q:"시장 전체 −30% 폭락 시 행동?", opts:[
+    {t:"다 팔겠다", s:1},{t:"일부 정리", s:2},{t:"가만히 둠", s:3},{t:"적극 매수", s:4}]},
+  {q:"매달 배당으로 현금흐름 받는 것은?", opts:[
+    {t:"필수 (생활비)", s:1},{t:"있으면 좋음", s:2},{t:"상관없음", s:3},{t:"성장이 더 중요", s:4}]},
+  {q:"주식 vs 채권/금 비중 선호?", opts:[
+    {t:"채권·금 위주", s:1},{t:"채권 50% 이상", s:2},{t:"주식 위주", s:3},{t:"주식 100%", s:4}]},
+  {q:"레버리지 ETF (TQQQ/QLD)는?", opts:[
+    {t:"전혀 모름", s:1},{t:"위험해서 안 함", s:2},{t:"일부 활용", s:3},{t:"적극 활용", s:4}]},
+  {q:"암호화폐(비트코인) 비중?", opts:[
+    {t:"안 함", s:1},{t:"소액 (~5%)", s:2},{t:"있음 (10~20%)", s:3},{t:"핵심 (30%+)", s:4}]},
+  {q:"성장주가 +100% 올랐을 때?", opts:[
+    {t:"바로 다 팔겠다", s:1},{t:"절반 익절", s:2},{t:"1/3 익절·나머지 보유", s:3},{t:"계속 들고감", s:4}]},
+  {q:"한 해 손실 −20%면?", opts:[
+    {t:"못 견딤", s:1},{t:"심란하지만 견딤", s:2},{t:"평균적 변동", s:3},{t:"흔한 일", s:4}]}
+];
+let quizAns={}, _quizInited=false;
+const QLS="pf_quiz_v1";
+try{ const saved=localStorage.getItem(QLS); if(saved) quizAns=JSON.parse(saved)||{}; }catch(e){}
+
+function toggleQuiz(){
+  const p=document.getElementById("quizPanel");
+  const collapsed=p.classList.toggle("collapsed");
+  document.getElementById("qzArrow").textContent=collapsed?"▶":"▼";
+  if(!collapsed && !_quizInited){ _quizInited=true; renderQuiz(); }
+}
+function renderQuiz(){
+  const html=QUIZ.map((q,qi)=>{
+    return `<div class="qzq">
+      <div class="qn">Q${qi+1}/${QUIZ.length}</div>
+      <div class="qt">${q.q}</div>
+      <div class="qzopts">${q.opts.map((o,oi)=>
+        `<button type="button" class="qzopt ${quizAns[qi]===oi?'on':''}" onclick="pickQuizAns(${qi},${oi})">${o.t}</button>`
+      ).join("")}</div></div>`;
+  }).join("");
+  document.getElementById("qzbody").innerHTML=
+    `<div class="qzprog" id="qzprog">진행: ${Object.keys(quizAns).length}/${QUIZ.length}</div>`+
+    html+
+    `<div class="qzbtns">
+       <button class="btn" onclick="submitQuiz()">결과 보기</button>
+       <button class="btn sec" onclick="resetQuiz()">처음부터</button>
+     </div>
+     <div class="qzresult" id="qzresult"></div>`;
+  // 이전 답안이 있으면 자동 표시
+  if(Object.keys(quizAns).length===QUIZ.length) submitQuiz();
+}
+function pickQuizAns(qi,oi){
+  quizAns[qi]=oi;
+  try{ localStorage.setItem(QLS,JSON.stringify(quizAns)); }catch(e){}
+  // 해당 질문의 선택 표시만 갱신
+  const qDiv=document.querySelectorAll(".qzq")[qi];
+  if(qDiv) qDiv.querySelectorAll(".qzopt").forEach((b,i)=>b.classList.toggle("on",i===oi));
+  document.getElementById("qzprog").textContent=`진행: ${Object.keys(quizAns).length}/${QUIZ.length}`;
+  // 모두 답하면 자동 결과
+  if(Object.keys(quizAns).length===QUIZ.length) submitQuiz();
+}
+function resetQuiz(){
+  quizAns={}; try{ localStorage.removeItem(QLS); }catch(e){}
+  renderQuiz();
+  document.getElementById("qzresult").classList.remove("on");
+}
+function submitQuiz(){
+  if(Object.keys(quizAns).length<QUIZ.length){
+    alert("아직 답을 하지 않은 문제가 있어요: "+(QUIZ.length-Object.keys(quizAns).length)+"개");
+    return;
+  }
+  let score=0;
+  QUIZ.forEach((q,qi)=>{ score+=q.opts[quizAns[qi]].s; });
+  // 12~48 → 5단계
+  let strat,name,desc;
+  if(score<=21){      strat="safe"; name="🛡️ 보수 배당중심"; desc="안전 최우선·매달 배당으로 마음 편하게."; }
+  else if(score<=29){ strat="allw"; name="🌦️ 정통 올웨더";   desc="레이 달리오 사계절 — 큰 손실 없이 꾸준."; }
+  else if(score<=36){ strat="bal";  name="⚖️ 균형형";        desc="올웨더 안정성 + 배당 현금흐름까지."; }
+  else if(score<=42){ strat="grow"; name="🚀 성장+배당 방어"; desc="QQQ로 상승 타고 QQQI/JEPQ로 하락 방어."; }
+  else {              strat="ultra";name="🔥 극공격 성장";    desc="TQQQ·QLD 레버리지로 상승장 극대화. ⚠️ 큰 손실 가능."; }
+  const r=document.getElementById("qzresult");
+  r.innerHTML=`<b>당신은 「${name}」 유형 (점수 ${score}/48)</b><br>
+    ${desc}<br><br>
+    <button class="btn" onclick="applyQuizResult('${strat}')">📊 이 전략으로 자동 추천 받기</button>
+    <span style="color:var(--muted);font-size:8.5pt;margin-left:8px">결과는 저장돼 다음에도 그대로 보여요</span>`;
+  r.classList.add("on");
+}
+function applyQuizResult(id){
+  pickStrategy(id);
+  // 진단 패널 접고 결과로 스크롤
+  const p=document.getElementById("quizPanel");
+  if(!p.classList.contains("collapsed")) toggleQuiz();
+  setTimeout(()=>document.getElementById("strpick").scrollIntoView({behavior:"smooth",block:"start"}),150);
+}
+
 function updRot(){
   const amt=+(document.getElementById("rotAmt")||{}).value||0;
   const res=document.getElementById("rotRes"); if(!res) return;
