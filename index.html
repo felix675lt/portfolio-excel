@@ -2,8 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Portfolio.xlsx - 자산현황</title>
+<!-- PWA: 홈화면 설치형 앱으로 동작 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#217346">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Portfolio">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   :root{
     --grid:#d4d4d4; --hdr-bg:#f3f3f3; --hdr-fg:#444; --sel:#107c41;
@@ -26,7 +35,10 @@
     padding:3px 9px;font-size:8.5pt;cursor:pointer}
   .titlebar button:hover{background:rgba(255,255,255,.3)}
   /* ===== Ribbon ===== */
-  .ribbon-tabs{background:var(--ribbon);display:flex;gap:2px;padding:0 8px;height:26px;font-size:9pt}
+  .ribbon-tabs{background:var(--ribbon);display:flex;gap:2px;padding:0 8px;height:26px;font-size:9pt;
+    overflow-x:auto;scrollbar-width:none}
+  .ribbon-tabs::-webkit-scrollbar{display:none}
+  .ribbon-tabs span{flex-shrink:0;white-space:nowrap}
   .ribbon-tabs span{color:#cfe6da;padding:4px 12px;cursor:default}
   .ribbon-tabs span.active{background:var(--cell-bg);color:var(--ribbon);border-radius:4px 4px 0 0;font-weight:600}
   .ribbon{background:var(--hdr-bg);border-bottom:1px solid var(--grid);padding:8px 10px;
@@ -271,7 +283,8 @@
   body.dark #futGrid tr.sum td{background:#3a3320}
   #futGrid tr.lot:nth-child(even) td{background:var(--band)}
   /* ===== Dividend: 배당 ===== */
-  #view-div.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
+  #view-div.on{display:block;height:calc(100vh - 30px - 26px);overflow:auto}
+  #view-div .divwrap{overflow:visible;flex:none;height:auto;min-height:0}
   .divcalc{background:var(--hdr-bg);border-bottom:1px solid var(--grid);padding:10px}
   .dcrow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
   .dcrow label{display:flex;flex-direction:column;font-size:7.5pt;color:var(--muted);gap:3px;position:relative}
@@ -333,7 +346,8 @@
   .trumpnews .nfoot{font-size:7.5pt;color:var(--muted);padding:6px 0 0;
     border-top:1px dashed var(--grid);margin-top:6px;line-height:1.45}
   /* ===== Strategy: 전략 ===== */
-  #view-str.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
+  #view-str.on{display:block;height:calc(100vh - 30px - 26px);overflow:auto}
+  #view-str .divwrap{overflow:visible;flex:none;height:auto;min-height:0;padding:0}
   .strpick{display:flex;gap:8px;flex-wrap:wrap;padding:10px;background:var(--hdr-bg);border-bottom:1px solid var(--grid)}
   .strcard{flex:1;min-width:160px;padding:9px 12px;border:2px solid var(--grid);border-radius:6px;
     background:var(--cell-bg);cursor:pointer;font-size:9pt;line-height:1.4;transition:all .12s}
