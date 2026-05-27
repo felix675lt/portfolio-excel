@@ -833,7 +833,13 @@ let fxNow = {USDKRW:null,EURKRW:null,JPYKRW:null,BTCUSD:null};
 const sym$ = s=>s.trim().toUpperCase();
 
 /* ============ 프록시 fetch (CORS 우회) ============ */
-const PROXIES = [
+/* corsproxy.io는 *.pages.dev 차단(403)이라 그 경우 allorigins 우선 */
+const _ON_PAGES = /pages\.dev$/.test(location.hostname);
+const PROXIES = _ON_PAGES ? [
+  u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
+  u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
+  u=>u
+] : [
   u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
   u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
   u=>u
@@ -1227,7 +1233,7 @@ function render(){
 
   const tb=document.getElementById("tbody"); tb.innerHTML="";
   if(!lots.length){
-    tb.innerHTML=`<tr><td colspan="${COLS.length}" class="empty">
+    tb.innerHTML=`<tr><td class="rownum">1</td><td colspan="${COLS.length-1}" class="empty">
       상단 리본에서 종목을 추가하세요. (예: 삼성전자 <b>005930.KS</b>, 카카오 <b>035720.KS</b>, 애플 <b>AAPL</b>)<br>
       또는 <b>샘플 불러오기</b>로 미리보기</td></tr>`;
     statTotals(0,0,base,fx);
@@ -1718,7 +1724,7 @@ function renderFut(){
   const tb=document.getElementById("futBody"); tb.innerHTML="";
   let totM=0,totN=0,totP=0;
   if(!futPos.length){
-    tb.innerHTML=`<tr><td colspan="${FCOLS.length}" class="empty">위 계산기에서 포지션을 산출한 뒤 <b>＋ 포트폴리오에 추가</b>를 누르면 여기에 누적됩니다.</td></tr>`;
+    tb.innerHTML=`<tr><td class="rownum">1</td><td colspan="${FCOLS.length-1}" class="empty">위 계산기에서 포지션을 산출한 뒤 <b>＋ 포트폴리오에 추가</b>를 누르면 여기에 누적됩니다.</td></tr>`;
     fillGrid(tb,FCOLS.length,document.querySelector(".futwrap"));
     futStat(0,0,0); return;
   }
