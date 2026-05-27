@@ -78,7 +78,7 @@
   .sheetwrap{overflow:auto;height:calc(100vh - 30px - 26px - 84px - 24px - 22px)}
   table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
   th,td{border:1px solid var(--grid);padding:4px 8px;white-space:nowrap;font-size:10pt}
-  thead th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;position:sticky;top:0;z-index:3;
+  thead th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;position:sticky;top:18px;z-index:3;
     text-align:center}
   .colhdr th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:400;font-size:9pt;
     text-align:center;height:18px;position:sticky;top:0;z-index:4}
@@ -555,8 +555,10 @@
 
   <div class="sheetwrap">
     <table id="grid">
-      <tr class="colhdr" id="colhdr"></tr>
-      <thead><tr id="thead"></tr></thead>
+      <thead>
+        <tr class="colhdr" id="colhdr"></tr>
+        <tr id="thead"></tr>
+      </thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
@@ -665,8 +667,10 @@
     <div class="fcrossbar" id="fcrossbar"></div>
     <div class="sheetwrap futwrap">
       <table id="futGrid">
-        <tr class="colhdr" id="futColhdr"></tr>
-        <thead><tr id="futThead"></tr></thead>
+        <thead>
+          <tr class="colhdr" id="futColhdr"></tr>
+          <tr id="futThead"></tr>
+        </thead>
         <tbody id="futBody"></tbody>
       </table>
     </div>
