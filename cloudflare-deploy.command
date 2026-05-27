@@ -3,7 +3,7 @@
 # 처음 1회만 브라우저로 Cloudflare 로그인, 이후엔 그냥 더블클릭하면 자동 재배포
 set -e
 cd "$(dirname "$0")" || exit 1
-PROJECT="${CF_PROJECT:-port}"
+PROJECT="${CF_PROJECT:-rookie}"
 
 echo "🌐 Cloudflare Pages 배포"
 echo "   대상: https://$PROJECT.pages.dev"
