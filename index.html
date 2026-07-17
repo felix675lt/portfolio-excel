@@ -400,6 +400,53 @@
   body.dark .qzresult{background:#3a2e1c}
   .qzresult.on{display:block}
   .qzresult b{color:var(--up)}
+  /* ===== 적립(김프 신호) ===== */
+  #view-acc.on{display:block;height:calc(100vh - 30px - 26px);overflow:auto}
+  #view-acc .divwrap{overflow:visible;flex:none;height:auto;min-height:0;padding:0}
+  .acctop{background:var(--hdr-bg);border-bottom:1px solid var(--grid);padding:12px 14px}
+  .kimpbadge{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:200px;padding:12px 20px;border-radius:10px;color:#fff;font-weight:800}
+  .kimpbadge.g{background:#1f8f4e}.kimpbadge.gg{background:#0f7a3a}
+  .kimpbadge.y{background:#c79000}.kimpbadge.r{background:#c0392b}.kimpbadge.n{background:#888}
+  .kimpbadge .pct{font-size:26pt;line-height:1.1;font-variant-numeric:tabular-nums}
+  .kimpbadge .st{font-size:10pt;margin-top:2px}
+  .kimprow{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+  .kimp3{font-size:9pt;color:var(--fg);line-height:1.85}
+  .kimp3 b{font-variant-numeric:tabular-nums}
+  .kimp3 .dd{color:var(--down);font-weight:700}
+  .accreco{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+  .accreco .ocard{min-width:130px}
+  .accreco .ocard.hi{border-color:#1f8f4e;border-width:2px}
+  .accroute{margin-top:10px;padding:8px 12px;background:var(--cell-bg);border:1px solid var(--grid);
+    border-radius:6px;font-size:9pt;line-height:1.6}
+  .accroute b{color:var(--ribbon)}
+  .kimptab{border-collapse:collapse;margin-top:10px;font-size:8.5pt}
+  .kimptab th,.kimptab td{border:1px solid var(--grid);padding:4px 12px;text-align:right}
+  .kimptab th{background:var(--ribbon);color:#fff;text-align:center}
+  .kimptab td:first-child{text-align:left;font-weight:600}
+  .kimptab .prem-pos{color:var(--up);font-weight:700}
+  .kimptab .prem-neg{color:#0a7a3a;font-weight:700}
+  body.dark .kimptab .prem-neg{color:#4ecb7a}
+  .accnote{font-size:7.5pt;color:var(--muted);margin-top:8px;font-style:italic}
+  .accstale{color:#c0392b;font-weight:700;font-size:8pt}
+  .accledger{padding:10px 14px}
+  .accinput{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}
+  .accinput label{display:flex;flex-direction:column;font-size:7.5pt;color:var(--muted);gap:3px}
+  .accinput input{font-family:inherit;font-size:9.5pt;padding:4px 6px;border:1px solid var(--grid);
+    border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .accbudget{margin:8px 0;font-size:8.5pt}
+  .accbar{height:16px;border-radius:8px;background:var(--band);overflow:hidden;border:1px solid var(--grid);margin:3px 0}
+  .accbar>span{display:block;height:100%;background:linear-gradient(90deg,#1f8f4e,#0f7a3a)}
+  .accgrid{border-collapse:collapse;width:100%;font-size:8.5pt;font-variant-numeric:tabular-nums}
+  .accgrid th,.accgrid td{border:1px solid var(--grid);padding:4px 8px;text-align:right;white-space:nowrap}
+  .accgrid th{background:var(--hdr-bg);color:var(--hdr-fg);position:sticky;top:0;text-align:center}
+  .accgrid td:nth-child(2){text-align:left}
+  .accgrid tr:nth-child(even) td{background:var(--band)}
+  .accgrid tfoot td{background:#fff4d6;font-weight:700}
+  body.dark .accgrid tfoot td{background:#3a3320}
+  .accgrid .delx{background:transparent;border:0;color:var(--muted);cursor:pointer}
+  .accgrid .delx:hover{color:var(--up)}
+  @media(max-width:600px){.kimpbadge{min-width:150px;padding:9px 12px}.kimpbadge .pct{font-size:20pt}}
   /* ===== Sheet tabs ===== */
   .sheettabs{height:0}
   @media(max-width:760px){.ribbon{gap:10px}.grp .lbl{display:none}
@@ -424,6 +471,7 @@
     <span id="tab-insert" onclick="showTab('insert')">삽입</span>
     <span id="tab-fut" onclick="showTab('fut')">선물</span>
     <span id="tab-div" onclick="showTab('div')">배당</span>
+    <span id="tab-acc" onclick="showTab('acc')">적립</span>
     <span id="tab-str" onclick="showTab('str')">전략</span>
     <span onclick="showTab('insert')">수식</span><span onclick="showTab('insert')">데이터</span>
     <span onclick="showTab('home')">보기</span>
@@ -819,6 +867,46 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== 적립: 김프 신호 · BTC 적립 ===================== -->
+  <div id="view-acc" class="view">
+    <div class="acctop">
+      <div class="kimprow">
+        <div class="kimpbadge n" id="kimpBadge">
+          <span class="pct" id="kimpPct">—</span>
+          <span class="st" id="kimpSt">로딩중…</span>
+        </div>
+        <div class="kimp3" id="kimp3">
+          업비트 BTC: <b id="acUp">—</b><br>
+          바이낸스 BTC×환율: <b id="acBn">—</b><br>
+          ATH 대비 드로다운: <b class="dd" id="acDd">—</b>
+        </div>
+        <div class="accreco" id="accReco"></div>
+      </div>
+      <div class="accroute" id="accRoute">경로 추천을 계산하는 중…</div>
+      <table class="kimptab" id="kimpTab"></table>
+      <div class="accnote">정보 제공용 · 투자자문 아님 · 프리미엄은 수분 단위로 변동 · <span id="acStamp"></span></div>
+    </div>
+    <div class="fbar">
+      <div class="namebox">A1</div><div class="fx"><i>fx</i></div>
+      <div class="content" id="acbrief">=KIMP() · 업비트/바이낸스 실시간 김프 · 반감기(2028.4) 전 BTC 적립 신호</div>
+    </div>
+    <div class="sheetwrap divwrap">
+      <div class="accledger">
+        <h3 style="font-size:10pt;margin:4px 0 8px">💰 내 BTC 적립 포트폴리오 <span style="font-weight:400;font-size:8pt;color:var(--muted)">— 매수할 때마다 기록하면 평단·수량·손익 자동 계산 (이 기기에 저장)</span></h3>
+        <div class="accinput">
+          <label>날짜<input type="date" id="acDate" style="width:130px"></label>
+          <label>매수액(원)<input type="number" id="acKrw" placeholder="예: 2777778" step="any" style="width:130px"></label>
+          <label>BTC 수량<input type="number" id="acBtc" placeholder="비우면 자동" step="any" style="width:120px"></label>
+          <button class="btn" onclick="acRecoFill()" title="이번 달 추천액 자동 입력">추천액</button>
+          <button class="btn" onclick="addAcc()">＋ 적립 기록</button>
+        </div>
+        <div class="accbudget" id="accBudget"></div>
+        <table class="accgrid" id="accGrid"></table>
+        <div class="accnote">평가·손익은 현재 시세 기준 · 세금/수수료 미반영 · 정보 제공용, 투자자문 아님</div>
       </div>
     </div>
   </div>
@@ -1341,7 +1429,7 @@ setInterval(()=>{ document.getElementById("clock").textContent=
 let curTab="home";
 function showTab(t){
   curTab=t;
-  ["home","insert","fut","div","str"].forEach(v=>{
+  ["home","insert","fut","div","str","acc"].forEach(v=>{
     document.getElementById("view-"+v).classList.toggle("on",t===v);
     const tb=document.getElementById("tab-"+v); if(tb) tb.classList.toggle("active",t===v);
   });
@@ -1349,6 +1437,7 @@ function showTab(t){
   else if(t==="fut") futRefresh();
   else if(t==="div"){ renderDivCat(); loadTrumpNews(); if(!_divInited){ _divInited=true; calcDiv(); } }
   else if(t==="str"){ if(!_strInited){ _strInited=true; renderStratPicker(); pickStrategy("allw"); updRot(); } }
+  else if(t==="acc"){ if(!_accInited){ _accInited=true; accInit(); } renderAccLedger(); kimpRefresh(); }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
 }
 
@@ -2691,6 +2780,226 @@ async function calcDiv(){
   </div>`;
 }
 
+/* ============ 적립: 김치프리미엄 신호 · BTC 적립 ============ */
+let _accInited=false;
+/* 적립 플랜 파라미터 (사용자 실제 값) */
+const ACC_ATH=126296;              // BTC ATH ($)
+const ACC_TOTAL=100000000;         // 총예산 1억
+const ACC_FLOOR_BUDGET=50000000;   // 바닥선 예산 5천만
+const ACC_FLOOR_MONTHS=18;
+const ACC_FLOOR_MONTHLY=Math.round(ACC_FLOOR_BUDGET/ACC_FLOOR_MONTHS); // 월 2,777,778
+const ACC_STRETCH_BUDGET=50000000; // 스트레치 예산 5천만
+/* 마지막 성공값 캐시 (실패 시 유지) */
+let kimpLast={ up:{}, bn:{}, usdkrw:null, ts:0 };
+let _kimpInflight=false;
+const ACCLS="pf_acc_v1";
+let accBuys=JSON.parse(localStorage.getItem(ACCLS)||"[]");
+
+/* 업비트 KRW 시세 (CORS 허용, 직접 호출) */
+async function upbitKRW(){
+  try{
+    const r=await fetch("https://api.upbit.com/v1/ticker?markets=KRW-BTC,KRW-XRP,KRW-TRX",{cache:"no-store"});
+    if(!r.ok) throw 0;
+    const arr=await r.json(); const out={};
+    arr.forEach(x=>{ const c=x.market.replace("KRW-",""); out[c]=x.trade_price; });
+    return out;
+  }catch(e){
+    const j=await jget("https://api.upbit.com/v1/ticker?markets=KRW-BTC,KRW-XRP,KRW-TRX");
+    const out={}; (j||[]).forEach(x=>{ out[x.market.replace("KRW-","")]=x.trade_price; }); return out;
+  }
+}
+/* 글로벌 USDT 시세 — 바이낸스, 폴백 Bybit */
+async function globalUSDT(){
+  try{
+    const j=await bget('https://api.binance.com/api/v3/ticker/price?symbols=%5B%22BTCUSDT%22%2C%22XRPUSDT%22%2C%22TRXUSDT%22%5D');
+    if(Array.isArray(j)&&j.length){ const o={}; j.forEach(x=>o[x.symbol.replace("USDT","")]=+x.price); if(o.BTC>0) return o; }
+  }catch(e){}
+  // 폴백 Bybit
+  const o={};
+  await Promise.all(["BTC","XRP","TRX"].map(async c=>{
+    try{ const j=await bget(`https://api.bybit.com/v5/market/tickers?category=spot&symbol=${c}USDT`);
+      const p=+j?.result?.list?.[0]?.lastPrice; if(p>0) o[c]=p; }catch(e){}
+  }));
+  return o;
+}
+/* USD/KRW — 앱 환율 재사용, 없으면 두나무 */
+async function accUsdKrw(){
+  if(fxNow.USDKRW>0) return fxNow.USDKRW;
+  try{ const j=await jget("https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=FRX.KRWUSD");
+    const p=+(Array.isArray(j)?j[0]:j)?.basePrice; if(p>0) return p; }catch(e){}
+  return null;
+}
+function premium(up, bn, usdkrw){
+  if(!(up>0)||!(bn>0)||!(usdkrw>0)) return null;
+  return (up/(bn*usdkrw)-1)*100;
+}
+/* BTC 프리미엄 → 신호 */
+function kimpSignal(P){
+  if(P==null) return {cls:"n", label:"—", action:"데이터 대기", w:0};
+  if(P<=-2)   return {cls:"gg",label:"강한 역프", action:"적극 매수 · 스트레치 ×1.2", w:1.2};
+  if(P<=-0.5) return {cls:"g", label:"역프",     action:"매수 우호 · 국내 직접매수", w:1.0};
+  if(P<1.5)   return {cls:"y", label:"중립",     action:"바닥선(월 적립)만", w:0};
+  return              {cls:"r", label:"김프",     action:"국내 매수 자제 · 홀드 권고", w:0};
+}
+/* 드로다운 밴드별 월 스트레치 */
+function stretchForDrawdown(dd){ // dd: 음수 %
+  if(dd<=-70) return 6500000;
+  if(dd<=-62) return 4500000;
+  if(dd<=-55) return 2500000;
+  return 0; // -55%보다 얕으면 0
+}
+/* 이번 달 추천액 계산 */
+function accRecommend(btcUSD, P){
+  const dd = (btcUSD-ACC_ATH)/ACC_ATH*100;
+  const sig = kimpSignal(P);
+  const stretchBase = stretchForDrawdown(dd);
+  const stretch = Math.round(stretchBase * sig.w);
+  // 예산 소진 체크 (누적)
+  const spent = accBuys.reduce((s,b)=>s+(+b.krw||0),0);
+  const remain = Math.max(0, ACC_TOTAL - spent);
+  let reco = Math.min(ACC_FLOOR_MONTHLY + stretch, remain);
+  return {dd, sig, stretchBase, stretch, floor:ACC_FLOOR_MONTHLY, reco, spent, remain};
+}
+
+async function kimpRefresh(){
+  if(curTab!=="acc"||_kimpInflight) return;
+  _kimpInflight=true;
+  let up,bn,usdkrw, ok=true;
+  try{
+    [up,bn,usdkrw]=await Promise.all([upbitKRW(), globalUSDT(), accUsdKrw()]);
+  }catch(e){ ok=false; }
+  // 세 값 중 하나라도 없으면 마지막값 유지 + 지연 표기
+  const haveNew = up&&up.BTC>0 && bn&&bn.BTC>0 && usdkrw>0;
+  if(haveNew){ kimpLast={up,bn,usdkrw,ts:Date.now()}; }
+  _kimpInflight=false;
+  renderKimp(!haveNew);
+}
+function renderKimp(stale){
+  const {up,bn,usdkrw,ts}=kimpLast;
+  const stamp=document.getElementById("acStamp");
+  if(!up||!up.BTC){ if(stamp) stamp.innerHTML='<span class="accstale">시세 로딩중…</span>'; return; }
+  const P = premium(up.BTC, bn.BTC, usdkrw);
+  const sig = kimpSignal(P);
+  const badge=document.getElementById("kimpBadge");
+  badge.className="kimpbadge "+sig.cls;
+  document.getElementById("kimpPct").textContent = P==null?"—":(P>=0?"+":"")+fmt(P,2)+"%";
+  document.getElementById("kimpSt").textContent = sig.label + (P!=null?(P>=0?" (한국 비쌈)":" (한국 쌈)"):"");
+  const bnKRW = bn.BTC*usdkrw;
+  document.getElementById("acUp").textContent = "₩"+fmt(up.BTC,0);
+  document.getElementById("acBn").textContent = "₩"+fmt(bnKRW,0)+"  ($"+fmt(bn.BTC,0)+" × "+fmt(usdkrw,1)+")";
+  const rec = accRecommend(bn.BTC, P);
+  document.getElementById("acDd").textContent = fmt(rec.dd,1)+"%  (ATH $"+fmt(ACC_ATH,0)+")";
+  // 이번 달 추천 카드
+  const btcQty = up.BTC>0? rec.reco/up.BTC : 0;
+  const card=(l,v,cls)=>`<div class="ocard ${cls||''}"><div class="ol">${l}</div><div class="ov">${v}</div></div>`;
+  document.getElementById("accReco").innerHTML=
+    card("이번 달 매수 추천", rec.remain<=0?"예산 소진 ✓":"₩"+fmt(rec.reco,0), rec.reco>rec.floor?"hi":"")+
+    card("≈ BTC 수량", rec.remain<=0?"—":"₿ "+fmt(btcQty,6))+
+    card("바닥선(월)", "₩"+fmt(rec.floor,0))+
+    card("스트레치", rec.stretch>0?"₩"+fmt(rec.stretch,0)+" (×"+sig.w+")":(rec.stretchBase>0?"보류(프리미엄)":"₩0"));
+  // 경로 추천
+  const pB=P, pX=premium(up.XRP,bn.XRP,usdkrw), pT=premium(up.TRX,bn.TRX,usdkrw);
+  let route="";
+  const cmp=[["BTC",pB],["XRP",pX],["TRX",pT]].filter(x=>x[1]!=null);
+  if(cmp.length){
+    cmp.sort((a,b)=>a[1]-b[1]); // 가장 할인(음수 큰) 먼저
+    const best=cmp[0], btcP=pB;
+    if(best[0]==="BTC"){
+      route=`<b>국내 업비트에서 BTC 직접 매수</b>가 최단·최저비용 (BTC가 가장 할인 ${fmt(pB,2)}%).`;
+    } else if(btcP!=null && best[1] <= btcP-0.3){
+      route=`해외 매수 계획이면: <b>${best[0]}</b>가 BTC보다 ${fmt(btcP-best[1],2)}%p 더 할인 → ${best[0]} 매수 → 바이낸스 전송 → 매도 → BTC 전환이 유리.`;
+    } else {
+      route=`<b>국내 업비트에서 BTC 직접 매수</b> 권장 (코인 간 프리미엄 차 미미).`;
+    }
+    route+=` <span style="color:var(--muted)">※ USDT 경로는 역프를 못 실어 불리.</span>`;
+  } else { route="코인별 프리미엄 계산 대기중…"; }
+  document.getElementById("accRoute").innerHTML=route;
+  // 코인별 프리미엄 테이블
+  const prow=(c,upv,bnv)=>{
+    const p=premium(upv,bnv,usdkrw);
+    const cls=p==null?"":(p>=0?"prem-pos":"prem-neg");
+    return `<tr><td>${c}</td><td>₩${fmt(upv,upv<100?4:0)}</td><td>$${fmt(bnv,bnv<1?4:2)}</td>
+      <td class="${cls}">${p==null?"—":(p>=0?"+":"")+fmt(p,2)+"%"}</td></tr>`;
+  };
+  document.getElementById("kimpTab").innerHTML=
+    `<tr><th>코인</th><th>업비트(원)</th><th>글로벌($)</th><th>프리미엄</th></tr>`+
+    prow("BTC",up.BTC,bn.BTC)+prow("XRP",up.XRP,bn.XRP)+prow("TRX",up.TRX,bn.TRX);
+  document.getElementById("acbrief").textContent=
+    `=KIMP() · BTC ${P==null?"—":(P>=0?"+":"")+fmt(P,2)+"%"} ${sig.label} · 드로다운 ${fmt(rec.dd,1)}% · 이번달 추천 ₩${fmt(rec.reco,0)}`;
+  if(stamp) stamp.innerHTML = stale
+    ? `<span class="accstale">지연 (마지막 ${new Date(ts).toLocaleTimeString("ko-KR")})</span>`
+    : `${new Date(ts).toLocaleTimeString("ko-KR")} 갱신`;
+}
+
+/* ── 적립 포트폴리오 원장 ── */
+function accInit(){
+  const d=document.getElementById("acDate");
+  if(d&&!d.value) d.value=new Date().toISOString().slice(0,10);
+}
+function acRecoFill(){
+  const {up}=kimpLast;
+  if(!up||!up.BTC){ alert("시세 로딩 후 눌러주세요."); return; }
+  const P=premium(up.BTC,kimpLast.bn.BTC,kimpLast.usdkrw);
+  const rec=accRecommend(kimpLast.bn.BTC,P);
+  if(rec.remain<=0){ alert("총예산(1억)을 모두 적립했습니다 🎉"); return; }
+  document.getElementById("acKrw").value=rec.reco;
+  document.getElementById("acBtc").value=""; // 자동
+}
+function addAcc(){
+  const date=document.getElementById("acDate").value||new Date().toISOString().slice(0,10);
+  const krw=+document.getElementById("acKrw").value||0;
+  let btc=+document.getElementById("acBtc").value||0;
+  if(krw<=0){ alert("매수액(원)을 입력하세요."); return; }
+  // BTC 수량 비면 그날 업비트가로 자동
+  if(btc<=0){
+    const px=kimpLast.up&&kimpLast.up.BTC;
+    if(px>0) btc=krw/px; else { alert("BTC 수량을 입력하거나, 시세 로딩 후 다시 시도하세요."); return; }
+  }
+  accBuys.push({id:Date.now()+Math.random(), date, krw, btc, px:krw/btc});
+  accBuys.sort((a,b)=>a.date.localeCompare(b.date));
+  localStorage.setItem(ACCLS,JSON.stringify(accBuys));
+  document.getElementById("acKrw").value=""; document.getElementById("acBtc").value="";
+  renderAccLedger(); renderKimp(false);
+}
+function delAcc(id){ accBuys=accBuys.filter(b=>b.id!=id); localStorage.setItem(ACCLS,JSON.stringify(accBuys)); renderAccLedger(); renderKimp(false); }
+function renderAccLedger(){
+  const g=document.getElementById("accGrid");
+  const now=kimpLast.up&&kimpLast.up.BTC || 0;
+  let totKrw=0,totBtc=0;
+  const rows=accBuys.map((b,i)=>{
+    totKrw+=b.krw; totBtc+=b.btc;
+    const valNow=now>0? b.btc*now : null;
+    const pl=valNow!=null? valNow-b.krw : null;
+    return `<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td>${b.date}</td>
+      <td>₩${fmt(b.krw,0)}</td>
+      <td>₿${fmt(b.btc,6)}</td>
+      <td>₩${fmt(b.px,0)}</td>
+      <td>${valNow!=null?"₩"+fmt(valNow,0):"—"}</td>
+      <td style="color:${pl>=0?'var(--up)':'var(--down)'}">${pl!=null?(pl>=0?"+":"")+"₩"+fmt(pl,0):"—"}</td>
+      <td style="text-align:center"><button class="delx" onclick="delAcc(${b.id})">✕</button></td></tr>`;
+  }).join("");
+  const avg=totBtc>0?totKrw/totBtc:0;
+  const valAll=now>0?totBtc*now:null;
+  const plAll=valAll!=null?valAll-totKrw:null;
+  const roi=(plAll!=null&&totKrw>0)?plAll/totKrw*100:null;
+  g.innerHTML=
+    `<thead><tr><th>회차</th><th>날짜</th><th>매수액</th><th>BTC수량</th><th>매수단가</th><th>현재평가</th><th>손익</th><th></th></tr></thead>`+
+    `<tbody>${rows||`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:16px">아직 적립 기록이 없어요. 위 <b>추천액</b> → <b>＋ 적립 기록</b>으로 시작하세요.</td></tr>`}</tbody>`+
+    (accBuys.length?`<tfoot><tr><td colspan="2" style="text-align:center">합계</td>
+      <td>₩${fmt(totKrw,0)}</td><td>₿${fmt(totBtc,6)}</td><td>₩${fmt(avg,0)}</td>
+      <td>${valAll!=null?"₩"+fmt(valAll,0):"—"}</td>
+      <td style="color:${plAll>=0?'var(--up)':'var(--down)'}">${plAll!=null?(plAll>=0?"+":"")+"₩"+fmt(plAll,0)+(roi!=null?" ("+(roi>=0?"+":"")+fmt(roi,1)+"%)":""):"—"}</td>
+      <td></td></tr></tfoot>`:"");
+  // 예산 진행바
+  const spent=totKrw, pct=Math.min(100,spent/ACC_TOTAL*100);
+  document.getElementById("accBudget").innerHTML=
+    `총예산 <b>₩${fmt(ACC_TOTAL,0)}</b> 중 <b>₩${fmt(spent,0)}</b> 적립 (${fmt(pct,1)}%) · 남은 예산 <b>₩${fmt(Math.max(0,ACC_TOTAL-spent),0)}</b>
+     <div class="accbar"><span style="width:${pct}%"></span></div>
+     <span style="color:var(--muted);font-size:8pt">바닥선 예산 ₩${fmt(ACC_FLOOR_BUDGET,0)}(월 ₩${fmt(ACC_FLOOR_MONTHLY,0)}×${ACC_FLOOR_MONTHS}개월) + 스트레치 예산 ₩${fmt(ACC_STRETCH_BUDGET,0)}</span>`;
+}
+
 render();
 refreshAll();
 renderMemo();
@@ -2710,11 +3019,13 @@ setInterval(()=>refreshAll(true), 15000);     // 포트폴리오 15초
 setInterval(()=>{ if(curTab==="home") homeRefresh(); }, 15000); // 홈 시세 15초
 setInterval(()=>{ if(curTab==="fut") futRefresh(); }, 15000);   // 선물 15초
 setInterval(()=>{ if(curTab==="div") loadTrumpNews(); }, 300000); // 배당탭 트럼프 뉴스 5분
+setInterval(()=>{ if(curTab==="acc") kimpRefresh(); }, 40000);  // 적립탭 김프 40초
 // 탭이 다시 활성화될 때 즉시 갱신
 document.addEventListener("visibilitychange",()=>{
   if(document.visibilityState==="visible"){
     if(curTab==="home") homeRefresh();
     else if(curTab==="fut") futRefresh();
+    else if(curTab==="acc") kimpRefresh();
     else refreshAll(true);
   }
 });
