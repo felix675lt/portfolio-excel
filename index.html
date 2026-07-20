@@ -954,8 +954,8 @@
       <div class="scanhead">
         🔍 <b>최적 송금 코인 스캐너</b> — 업비트 → 바이낸스/바이비트, 지금 어느 코인이 가장 이득?
         <span class="scanctl">
-          <label><input type="radio" name="scanScope" value="bridge" checked onchange="renderScan()"> 전송적합 코인</label>
-          <label><input type="radio" name="scanScope" value="all" onchange="renderScan()"> 전체 공통(<span id="scanAllN">–</span>)</label>
+          <label><input type="radio" name="scanScope" value="bridge" checked onchange="renderScan()"> 순차익 순</label>
+          <label><input type="radio" name="scanScope" value="all" onchange="renderScan()"> 역프(할인) 순</label>
           <span class="scanstamp" id="scanStamp"></span>
         </span>
       </div>
@@ -2892,18 +2892,44 @@ function resetFees(){ FEE={...FEE_DEFAULT}; try{localStorage.removeItem(FEELS);}
 const XFER_FEE={
   XRP:0.4, TRX:1, XLM:0.01, ADA:0.4, DOGE:4, ALGO:0.1, ATOM:0.05, DOT:0.05,
   SOL:0.01, HBAR:1, EOS:0.1, VET:20, LTC:0.001, BCH:0.001, ETH:0.01, AVAX:0.01,
-  NEAR:0.1, APT:0.01, SUI:0.5, SEI:1, ARB:1, OP:0.2, MATIC:0.1, POL:0.1,
-  LINK:0.1, DOGE2:0
+  NEAR:0.1, APT:0.01, SUI:0.5, SEI:1, ARB:1, OP:0.2, POL:0.1, LINK:0.1
 };
+const SCAN_COINS=Object.keys(XFER_FEE);
 let scanData=[], _scanTs=0;
-/* 업비트 전체 KRW 티커 + 바이낸스/바이비트 전체가 → 코인별 프리미엄·최적 목적지 */
+/* 업비트 rate limit 회피: 마켓목록 1시간 캐시(전체 호출 대신 소량 호출용 필터), 티커 25초 캐시, 프록시 폴백 */
+let _upMarkets=null, _upMarketsTs=0, _upScan={}, _upScanTs=0;
+async function upbitMarkets(){
+  if(_upMarkets && Date.now()-_upMarketsTs<3600000) return _upMarkets;
+  for(const f of [
+    ()=>fetch("https://api.upbit.com/v1/market/all?isDetails=false",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()),
+    ()=>jget("https://api.upbit.com/v1/market/all?isDetails=false")
+  ]){
+    try{ const m=await f(); if(Array.isArray(m)&&m.length){
+      _upMarkets=new Set(m.filter(x=>x.market.startsWith("KRW-")).map(x=>x.market.replace("KRW-",""))); _upMarketsTs=Date.now(); return _upMarkets;
+    } }catch(e){}
+  }
+  return _upMarkets;
+}
+/* 전송적합 코인만 소량 티커 호출(배지 수준 안정성) — 존재하는 마켓만 요청 */
+async function upbitScanTickers(){
+  if(Object.keys(_upScan).length && Date.now()-_upScanTs<25000) return _upScan;
+  const mkSet=await upbitMarkets();
+  const coins=["BTC",...SCAN_COINS].filter(c=>!mkSet || mkSet.has(c));
+  if(!coins.length) return _upScan;
+  const url="https://api.upbit.com/v1/ticker?markets="+coins.map(c=>"KRW-"+c).join(",");
+  let arr=null;
+  try{ const r=await fetch(url,{cache:"no-store"}); if(r.ok) arr=await r.json(); }catch(e){}
+  if(!Array.isArray(arr)){ try{ arr=await jget(url); }catch(e){} }
+  if(Array.isArray(arr)&&arr.length){
+    const o={}; arr.forEach(x=>o[x.market.replace("KRW-","")]=x.trade_price);
+    _upScan=o; _upScanTs=Date.now();
+  }
+  return _upScan;
+}
+/* 전송적합 코인 업비트가 + 바이낸스/바이비트 전체가 → 프리미엄·최적 목적지 */
 async function scanFetch(){
   const [upMk, bnAll, byAll] = await Promise.all([
-    (async()=>{ try{ const m=await fetch("https://api.upbit.com/v1/market/all?isDetails=false",{cache:"no-store"}).then(r=>r.json());
-       const krw=m.filter(x=>x.market.startsWith("KRW-")).map(x=>x.market);
-       const t=await fetch("https://api.upbit.com/v1/ticker?markets="+krw.join(","),{cache:"no-store"}).then(r=>r.json());
-       const o={}; t.forEach(x=>o[x.market.replace("KRW-","")]=x.trade_price); return o;
-     }catch(e){ return null; } })(),
+    upbitScanTickers().catch(()=>({})),
     bget("https://api.binance.com/api/v3/ticker/price").catch(()=>null),
     bget("https://api.bybit.com/v5/market/tickers?category=spot").catch(()=>null)
   ]);
@@ -2960,8 +2986,11 @@ let _kimpInflight=false;
 const ACCLS="pf_acc_v1";
 let accBuys=JSON.parse(localStorage.getItem(ACCLS)||"[]");
 
-/* 업비트 KRW 시세 (CORS 허용, 직접 호출) */
+/* 업비트 KRW 시세 (CORS 허용, 직접 호출) — 전체티커 캐시 우선 재사용해 호출 절약 */
 async function upbitKRW(){
+  if(_upScan && _upScan.BTC>0 && Date.now()-_upScanTs<25000){
+    return {BTC:_upScan.BTC, XRP:_upScan.XRP, TRX:_upScan.TRX};
+  }
   try{
     const r=await fetch("https://api.upbit.com/v1/ticker?markets=KRW-BTC,KRW-XRP,KRW-TRX",{cache:"no-store"});
     if(!r.ok) throw 0;
@@ -3111,19 +3140,18 @@ function renderScan(){
   const tb=document.getElementById("scanTab"); if(!tb) return;
   const scopeEl=document.querySelector('input[name="scanScope"]:checked');
   const scope=scopeEl?scopeEl.value:"bridge";
-  const allN=document.getElementById("scanAllN"); if(allN) allN.textContent=scanData.length||"–";
   const st=document.getElementById("scanStamp");
   if(st) st.textContent=_scanTs?`${scanData.length}코인 · ${new Date(_scanTs).toLocaleTimeString("ko-KR")} 갱신`:"로딩중…";
   if(!scanData.length){
-    tb.innerHTML=`<tr><td style="padding:16px;text-align:center;color:var(--muted)">스캔 로딩중… (업비트·바이낸스·바이비트 실시간)</td></tr>`; return;
+    tb.innerHTML=`<tr><td style="padding:16px;text-align:center;color:var(--muted)">스캔 로딩중… (업비트 rate limit 시 잠시 후 자동 재시도)</td></tr>`; return;
   }
   let list=scanData.slice();
   if(scope==="bridge"){
-    list=list.filter(x=>x.bridgeable).sort((a,b)=>b.net-a.net);
+    // 순차익 순 (net 있는 것 우선)
+    list.sort((a,b)=>(b.net==null?-1e9:b.net)-(a.net==null?-1e9:a.net));
   } else {
-    // 전체: 프리미엄(할인 큰=음수) 순
+    // 역프(할인 큰=음수) 순
     list.sort((a,b)=>a.prem-b.prem);
-    list=list.slice(0,40);
   }
   const rows=list.map((x,i)=>{
     const premCls=x.prem<0?"prem-neg":"prem-pos";
@@ -3132,7 +3160,7 @@ function renderScan(){
       : `<td class="net-neg">확인필요</td>`;
     const feeCell = x.feePct!=null? fmt(x.feePct,3)+"%" : "—";
     const tag = x.bridgeable? `<span class="tag">전송적합</span>` : "";
-    return `<tr class="${(scope==='bridge'&&i===0)?'best':''}">
+    return `<tr class="${(i===0)?'best':''}">
       <td>${i+1}</td>
       <td>${x.coin} ${tag}</td>
       <td>₩${fmt(x.upP, x.upP<10?4:0)}</td>
