@@ -431,6 +431,10 @@
     border:1px solid var(--grid);border-radius:6px;font-size:8.5pt;line-height:1.65}
   .accrguide.on{display:block}
   .accrguide b{color:var(--ribbon)}
+  .feegrid{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin:6px 0}
+  .feegrid label{display:flex;flex-direction:column;font-size:7.5pt;color:var(--muted);gap:2px}
+  .feegrid input{width:110px;font-family:inherit;font-size:9pt;padding:3px 5px;border:1px solid var(--grid);
+    border-radius:3px;background:var(--cell-bg);color:var(--fg)}
   .kimptab{border-collapse:collapse;margin-top:10px;font-size:8.5pt}
   .kimptab th,.kimptab td{border:1px solid var(--grid);padding:4px 12px;text-align:right}
   .kimptab th{background:var(--ribbon);color:#fff;text-align:center}
@@ -902,7 +906,19 @@
           <input type="checkbox" id="accToWallet" onchange="renderKimp(false)"> 매수 후 <b>개인지갑으로 출금</b>
         </label>
         <span class="fdhint">체크하면 출금 수수료까지 넣어 ‘어느 경로가 BTC 개수 더 많나’ 계산</span>
+        <span class="acgtoggle" onclick="document.getElementById('feeBox').classList.toggle('on')">⚙ 수수료 설정</span>
         <span class="acgtoggle" onclick="document.getElementById('accRouteGuide').classList.toggle('on')">ⓘ 경로 원리</span>
+      </div>
+      <div class="accrguide" id="feeBox">
+        <b>⚙ 내 거래소 수수료로 맞추기</b> <span style="color:var(--muted);font-size:8pt">(경로 계산에 즉시 반영 · 이 기기에 저장)</span><br>
+        <div class="feegrid">
+          <label>업비트 거래 %<input type="number" id="feeUpTrade" step="0.01" oninput="saveFees()"></label>
+          <label>바이낸스 거래 %<input type="number" id="feeBnTrade" step="0.01" oninput="saveFees()"></label>
+          <label>업비트 BTC 출금(BTC)<input type="number" id="feeUpOut" step="0.0001" oninput="saveFees()"></label>
+          <label>바이낸스 BTC 출금(BTC)<input type="number" id="feeBnOut" step="0.0001" oninput="saveFees()"></label>
+          <button class="btn sec" onclick="resetFees()">기본값</button>
+        </div>
+        <span style="color:var(--muted);font-size:7.5pt">기본값: 업비트 거래 0.05% / 바이낸스 0.1%(다리 경로는 2회) / 업비트 BTC 출금 0.0009 / 바이낸스 0.0002. VIP·이벤트 등급이면 본인 값으로 낮춰 입력.</span>
       </div>
       <div class="accroute" id="accRoute">경로 추천을 계산하는 중…</div>
       <div class="accrguide" id="accRouteGuide">
@@ -2815,13 +2831,30 @@ const ACC_FLOOR_BUDGET=50000000;   // 바닥선 예산 5천만
 const ACC_FLOOR_MONTHS=18;
 const ACC_FLOOR_MONTHLY=Math.round(ACC_FLOOR_BUDGET/ACC_FLOOR_MONTHS); // 월 2,777,778
 const ACC_STRETCH_BUDGET=50000000; // 스트레치 예산 5천만
-/* 경로 비교 수수료 근사치 (거래소·시점마다 다름) */
-const FEE={
-  upbitTrade:0.0005,   // 업비트 거래 0.05%
-  binTrade:0.001,      // 바이낸스 거래 0.1% (다리 경로는 2회)
-  upbitBtcOut:0.0009,  // 업비트 BTC 출금 (BTC 단위) — 비쌈
-  binBtcOut:0.0002     // 바이낸스 BTC 출금 (BTC 단위)
-};
+/* 경로 비교 수수료 (사용자 설정 가능, 기본값은 근사치) */
+const FEE_DEFAULT={upbitTrade:0.0005, binTrade:0.001, upbitBtcOut:0.0009, binBtcOut:0.0002};
+let FEE={...FEE_DEFAULT};
+const FEELS="pf_acc_fee";
+try{ const s=JSON.parse(localStorage.getItem(FEELS)||"null"); if(s) FEE={...FEE_DEFAULT,...s}; }catch(e){}
+function fillFeeInputs(){
+  const set=(id,v)=>{ const e=document.getElementById(id); if(e) e.value=v; };
+  set("feeUpTrade",(FEE.upbitTrade*100).toFixed(3).replace(/0+$/,'').replace(/\.$/,''));
+  set("feeBnTrade",(FEE.binTrade*100).toFixed(3).replace(/0+$/,'').replace(/\.$/,''));
+  set("feeUpOut",FEE.upbitBtcOut);
+  set("feeBnOut",FEE.binBtcOut);
+}
+function saveFees(){
+  const num=(id,def)=>{ const v=parseFloat(document.getElementById(id)?.value); return isNaN(v)?def:v; };
+  FEE={
+    upbitTrade:Math.max(0,num("feeUpTrade",FEE.upbitTrade*100)/100),
+    binTrade:Math.max(0,num("feeBnTrade",FEE.binTrade*100)/100),
+    upbitBtcOut:Math.max(0,num("feeUpOut",FEE.upbitBtcOut)),
+    binBtcOut:Math.max(0,num("feeBnOut",FEE.binBtcOut))
+  };
+  try{ localStorage.setItem(FEELS,JSON.stringify(FEE)); }catch(e){}
+  if(typeof renderKimp==="function") renderKimp(false);
+}
+function resetFees(){ FEE={...FEE_DEFAULT}; try{localStorage.removeItem(FEELS);}catch(e){} fillFeeInputs(); renderKimp(false); }
 /* 두 경로로 같은 원화를 넣었을 때 최종 BTC 개수 비교 */
 function routeCompare(krw, up, bn, usdkrw, bridge, toWallet){
   if(!(krw>0)||!up||!bn||!(usdkrw>0)) return null;
@@ -2995,6 +3028,7 @@ function renderKimp(stale){
 function accInit(){
   const d=document.getElementById("acDate");
   if(d&&!d.value) d.value=new Date().toISOString().slice(0,10);
+  fillFeeInputs();
 }
 function acRecoFill(){
   const {up}=kimpLast;

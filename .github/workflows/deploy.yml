@@ -1,0 +1,29 @@
+name: Deploy to Cloudflare Pages
+
+# main에 push할 때마다 자동으로 rookie.pages.dev에 배포
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # 수동 실행 버튼도 제공
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect static files
+        run: |
+          mkdir -p _site
+          cp index.html manifest.json icon.svg icon-maskable.svg _site/
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: bc47651e8ab1e89b1da1d0edaa23cfdf
+          command: pages deploy _site --project-name=rookie --branch=main --commit-dirty=true
