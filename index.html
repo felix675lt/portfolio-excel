@@ -3071,16 +3071,21 @@ function accRecommend(btcUSD, P){
 async function kimpRefresh(){
   if(curTab!=="acc"||_kimpInflight) return;
   _kimpInflight=true;
-  let up,bn,usdkrw, scan, ok=true;
+  let scan,bn,usdkrw;
   try{
-    [up,bn,usdkrw,scan]=await Promise.all([upbitKRW(), globalUSDT(), accUsdKrw(), scanFetch().catch(()=>null)]);
-  }catch(e){ ok=false; }
-  // 세 값 중 하나라도 없으면 마지막값 유지 + 지연 표기
+    // scanFetch가 업비트 BTC+전송코인을 한 번에 가져옴 → 배지도 여기서 파생(업비트 호출 1회)
+    [scan,bn,usdkrw]=await Promise.all([scanFetch().catch(()=>null), globalUSDT(), accUsdKrw()]);
+  }catch(e){}
+  // 배지용 up: 스캔 업비트값 우선, 없으면 별도 소량 호출
+  let up = scan&&scan.up&&scan.up.BTC>0
+    ? {BTC:scan.up.BTC, XRP:scan.up.XRP, TRX:scan.up.TRX}
+    : await upbitKRW().catch(()=>null);
   const haveNew = up&&up.BTC>0 && bn&&bn.BTC>0 && usdkrw>0;
   if(haveNew){ const prevRec=kimpLast.rec; kimpLast={up,bn,usdkrw,ts:Date.now(),rec:prevRec}; }
-  // 스캔 데이터 갱신
-  if(scan&&scan.up&&Object.keys(scan.up).length){
-    scanData=computeScan(scan.up, scan.bn, scan.by, usdkrw||kimpLast.usdkrw);
+  // 스캔 데이터 갱신 (up 있고 fx 있을 때만)
+  const fx = usdkrw || kimpLast.usdkrw;
+  if(scan&&scan.up&&Object.keys(scan.up).length && fx>0){
+    scanData=computeScan(scan.up, scan.bn, scan.by, fx);
     _scanTs=Date.now();
   }
   _kimpInflight=false;
