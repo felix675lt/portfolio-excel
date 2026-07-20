@@ -109,13 +109,11 @@
   .restab th,.restab td{border:1px solid var(--grid);padding:4px 8px;text-align:right;white-space:nowrap}
   .restab th{background:var(--hdr-bg);color:var(--hdr-fg);text-align:center;font-size:8pt}
   .restab td:nth-child(1){text-align:left;font-weight:600}
-  .restab td:nth-child(6){text-align:center}
+  .restab td:nth-child(7){text-align:center}
   .restab .near{color:var(--up);font-weight:700}
   .restab .wait{color:var(--muted)}
-  .restab .resfill{background:transparent;border:1px solid var(--ribbon);color:var(--ribbon);
-    border-radius:3px;padding:1px 7px;font-size:8pt;cursor:pointer}
-  .restab .resfill:hover{background:var(--ribbon);color:#fff}
-  .restab .resx{background:transparent;border:0;color:var(--muted);cursor:pointer}
+  .restab .usd{color:var(--muted);font-size:7pt}
+  .restab .resx{background:transparent;border:0;color:var(--muted);cursor:pointer;margin-left:6px}
   .restab .resx:hover{color:var(--up)}
   @keyframes resflash{0%{background:#fff3b0}100%{background:transparent}}
   .restab tr.filled td{animation:resflash 2s ease-out}
@@ -1460,46 +1458,47 @@ function checkReserves(){
   if(filled) renderReserves();
   else renderReserves();
 }
+/* 원화+달러 병기 */
+function wonUsd(vKRW){
+  if(vKRW==null) return "—";
+  return `${money(vKRW,'KRW',fxNow)} <span class="usd">${money(vKRW,'USD',fxNow)}</span>`;
+}
 function renderReserves(){
   const panel=document.getElementById("resPanel"); if(!panel) return;
-  document.getElementById("resCount").textContent=`(${reserves.length})`;
   const tb=document.getElementById("resTab");
+  // 총 주문금액 (예약가×수량 합)
+  let totKRW=0, cnt=0;
+  reserves.forEach(r=>{ const t=resTargetKRW(r); if(t!=null){ totKRW+=t*r.qty; cnt++; } });
+  document.getElementById("resCount").innerHTML =
+    `(${reserves.length})` + (reserves.length? ` · 총 주문금액 <b>${wonUsd(totKRW)}</b>` : "");
   if(!reserves.length){
     tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:10px">예약 없음. 위에서 종목·수량·예약가를 넣고 <b>＋ 예약 걸기</b>. 목표가 도달 시 자동 체결됩니다.</td></tr>`;
     return;
   }
-  const base=document.getElementById("baseCur")?document.getElementById("baseCur").value:"KRW";
   const rows=reserves.map(r=>{
-    const q=quotes[r.sym];
     const liveKRW=resLiveKRW(r), tgtKRW=resTargetKRW(r);
+    const orderKRW = tgtKRW!=null? tgtKRW*r.qty : null;   // 주문금액 = 예약가×수량
     const nm=(typeof symName==="function"?symName(r.sym):r.sym);
     let distTxt="—", distCls="wait", statusTxt="시세 대기";
     if(liveKRW!=null&&tgtKRW!=null){
-      const distPct=(liveKRW/tgtKRW-1)*100;   // 현재가가 목표 대비 몇 %
+      const distPct=(liveKRW/tgtKRW-1)*100;
       const met=r.cond==="le"? liveKRW<=tgtKRW : liveKRW>=tgtKRW;
       distTxt=(distPct>=0?"+":"")+fmt(distPct,2)+"%";
-      const near=Math.abs(distPct)<=2;
-      distCls=near?"near":"wait";
+      distCls=Math.abs(distPct)<=2?"near":"wait";
       statusTxt=met?"체결조건 충족":(r.cond==="le"?"하락 대기":"상승 대기");
     }
     const condTxt=r.cond==="le"?"이하 ↓":"이상 ↑";
-    const liveTxt=liveKRW!=null? money(liveKRW,base,fxNow):"—";
     return `<tr class="${_resFilledFlash===r.sym?'filled':''}">
       <td>${nm} <span style="color:var(--muted);font-size:7pt">${r.sym}</span></td>
       <td>${fmt(r.qty,r.qty%1?4:0)}</td>
-      <td>${money(tgtKRW,base,fxNow)} <span style="color:var(--muted);font-size:7pt">${condTxt}</span></td>
-      <td>${liveTxt}</td>
+      <td>${wonUsd(tgtKRW)} <span style="color:var(--muted);font-size:7pt">${condTxt}</span></td>
+      <td>${wonUsd(orderKRW)}</td>
+      <td>${wonUsd(liveKRW)}</td>
       <td class="${distCls}">${distTxt}</td>
-      <td style="color:${distCls==='near'?'var(--up)':'var(--muted)'}">${statusTxt}</td>
-      <td style="text-align:center">
-        <button class="resfill" onclick="manualFill('${r.id}')" title="지금 시장가로 체결">지금체결</button>
-        <button class="resx" onclick="delReserve('${r.id}')">✕</button></td></tr>`;
+      <td style="color:${distCls==='near'?'var(--up)':'var(--muted)'}">${statusTxt}
+        <button class="resx" onclick="delReserve('${r.id}')" title="예약 취소">✕</button></td></tr>`;
   }).join("");
-  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가</th><th>현재가</th><th>거리</th><th>상태</th><th></th></tr></thead><tbody>${rows}</tbody>`;
-}
-function manualFill(id){
-  const r=reserves.find(x=>String(x.id)===String(id)); if(!r) return;
-  if(confirm(`${(typeof symName==="function"?symName(r.sym):r.sym)} ${r.qty}주를 지금 예약가(${r.price})로 체결할까요?`)) fillReserve(r, false);
+  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가</th><th>주문금액</th><th>현재가</th><th>거리</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
 }
 function loadSample(){
   lots=[
