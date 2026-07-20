@@ -3017,11 +3017,24 @@ async function globalUSDT(){
   return o;
 }
 /* USD/KRW — 앱 환율 재사용, 없으면 두나무 */
+let _fxCache=null, _fxTs=0;
 async function accUsdKrw(){
   if(fxNow.USDKRW>0) return fxNow.USDKRW;
-  try{ const j=await jget("https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=FRX.KRWUSD");
-    const p=+(Array.isArray(j)?j[0]:j)?.basePrice; if(p>0) return p; }catch(e){}
-  return null;
+  if(_fxCache && Date.now()-_fxTs<300000) return _fxCache;   // 5분 캐시
+  // CORS 직접 호출 되는 소스 우선(er-api, jsdelivr), 두나무는 폴백
+  const srcs=[
+    ["https://open.er-api.com/v6/latest/USD", j=>j&&j.rates&&j.rates.KRW],
+    ["https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json", j=>j&&j.usd&&j.usd.krw],
+    ["https://quotation-api-cdn.dunamu.com/v1/forex/recent?codes=FRX.KRWUSD", j=>{const x=Array.isArray(j)?j[0]:j; return x&&x.basePrice;}]
+  ];
+  for(const [url,pick] of srcs){
+    try{ const r=await fetch(url,{cache:"no-store"}); if(r.ok){ const p=+pick(await r.json());
+      if(p>0){ _fxCache=p; _fxTs=Date.now(); if(!(fxNow.USDKRW>0)) fxNow.USDKRW=p; return p; } } }catch(e){}
+  }
+  // 프록시 마지막 시도
+  try{ const j=await jget("https://open.er-api.com/v6/latest/USD"); const p=+(j&&j.rates&&j.rates.KRW);
+    if(p>0){ _fxCache=p; _fxTs=Date.now(); return p; } }catch(e){}
+  return _fxCache;
 }
 function premium(up, bn, usdkrw){
   if(!(up>0)||!(bn>0)||!(usdkrw>0)) return null;
