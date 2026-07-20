@@ -93,6 +93,32 @@
   .delbtn{background:transparent;border:0;color:var(--muted);cursor:pointer;font-size:11pt}
   .delbtn:hover{color:var(--up)}
   .empty{padding:40px;text-align:center;color:var(--muted)}
+  /* 예약매수 */
+  .respanel{border-bottom:1px solid var(--grid);background:var(--band)}
+  .reshead{padding:6px 12px;cursor:pointer;font-size:9pt;font-weight:600;user-select:none}
+  .reshead:hover{background:var(--hdr-bg)}
+  .reshead .reshint{font-weight:400;font-size:7.5pt;color:var(--muted)}
+  .reshead #resArrow{display:inline-block;width:12px;color:var(--ribbon)}
+  .respanel.collapsed .resbody{display:none}
+  .resbody{padding:6px 12px 8px}
+  .resinput{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+  .resinput input,.resinput select{font-family:inherit;font-size:9pt;padding:3px 6px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .resinput input[type=text]{width:170px}.resinput input[type=number]{width:90px}
+  .restab{border-collapse:collapse;width:100%;font-size:8.5pt;font-variant-numeric:tabular-nums}
+  .restab th,.restab td{border:1px solid var(--grid);padding:4px 8px;text-align:right;white-space:nowrap}
+  .restab th{background:var(--hdr-bg);color:var(--hdr-fg);text-align:center;font-size:8pt}
+  .restab td:nth-child(1){text-align:left;font-weight:600}
+  .restab td:nth-child(6){text-align:center}
+  .restab .near{color:var(--up);font-weight:700}
+  .restab .wait{color:var(--muted)}
+  .restab .resfill{background:transparent;border:1px solid var(--ribbon);color:var(--ribbon);
+    border-radius:3px;padding:1px 7px;font-size:8pt;cursor:pointer}
+  .restab .resfill:hover{background:var(--ribbon);color:#fff}
+  .restab .resx{background:transparent;border:0;color:var(--muted);cursor:pointer}
+  .restab .resx:hover{color:var(--up)}
+  @keyframes resflash{0%{background:#fff3b0}100%{background:transparent}}
+  .restab tr.filled td{animation:resflash 2s ease-out}
   tr.fill td{height:21px;background:var(--cell-bg)}
   tr.fill td.rownum{color:var(--hdr-fg)}
   .memogrid tr.fill td{height:21px;background:var(--cell-bg)}
@@ -463,6 +489,9 @@
   .scantab .net-pos{color:#0a7a3a;font-weight:700}
   .scantab .net-neg{color:var(--muted)}
   .scantab .tag{font-size:7pt;padding:0 4px;border-radius:6px;background:var(--ribbon);color:#fff}
+  .scantab .spd{font-size:7pt;padding:0 4px;border-radius:6px;margin-left:2px}
+  .scantab .spd.fast{background:#1f8f4e;color:#fff}
+  .scantab .spd.med{background:#c79000;color:#fff}
   .scantab .dest{font-size:7.5pt;color:var(--muted)}
   .accnote{font-size:7.5pt;color:var(--muted);margin-top:8px;font-style:italic}
   .accstale{color:#c0392b;font-weight:700;font-size:8pt}
@@ -638,6 +667,21 @@
     <div class="content" id="fxcontent" title="기준: 매수가($/sat)=매수일 일봉 종가 · 평균=수량가중평균 · BTC-USD=글로벌 대형거래소(바이낸스·코인베이스 등) 종합가 · ⚠️ 한국주식 sat은 장마감(≈06:00 UTC)과 BTC·환율 종가 시점차로 오차 가능 — 미국주식·코인거래소 상장 확대 시 정밀도 향상">기준: 매수가($/sat)=매수일 일봉 종가 · 평균=수량가중평균 · BTC-USD=글로벌 대형거래소(바이낸스·코인베이스 등) 종합가 · ⚠️ 한국주식 sat은 장마감(≈06:00 UTC)과 BTC·환율 종가 시점차로 오차 가능 — 미국주식·코인거래소 상장 확대 시 정밀도 향상</div>
   </div>
 
+  <div class="respanel" id="resPanel">
+    <div class="reshead" onclick="toggleRes()"><span id="resArrow">▼</span> ⏰ 예약매수 <span id="resCount">(0)</span>
+      <span class="reshint">— 목표가에 도달하면 자동 체결되어 아래 포트폴리오에 반영 (시세 실시간 연동 · 15초마다 확인)</span></div>
+    <div class="resbody" id="resBody">
+      <div class="resinput">
+        <input type="text" id="resSym" placeholder="종목명·코드 (삼성, 엔비디아…)" autocomplete="off">
+        <input type="number" id="resQty" placeholder="수량" step="any">
+        <input type="number" id="resPrice" placeholder="예약가" step="any">
+        <select id="resCur"><option value="auto">native</option><option>KRW</option><option>USD</option></select>
+        <select id="resCond" title="예약가에 도달하는 방향"><option value="le">이하로 내려오면 ↓</option><option value="ge">이상으로 오르면 ↑</option></select>
+        <button class="btn" onclick="addReserve()">＋ 예약 걸기</button>
+      </div>
+      <table class="restab" id="resTab"></table>
+    </div>
+  </div>
   <div class="sheetwrap">
     <table id="grid">
       <thead>
@@ -1242,13 +1286,15 @@ async function refreshAll(silent){
   if(b && !silent){ b.textContent="⏳ 갱신중…"; b.disabled=true; }
   try{
     await fetchRates();
-    const syms=[...new Set(lots.map(l=>l.sym))];
+    // 포트폴리오 종목 + 예약매수 종목 모두 시세 갱신
+    const syms=[...new Set([...lots.map(l=>l.sym), ...reserves.map(r=>r.sym)])];
     await Promise.all(syms.map(async s=>{
       try{ quotes[s]=await yQuote(s); }catch(e){ quotes[s]=quotes[s]||{price:null,cur:"?"}; }
     }));
     _pfLastSyncMs=Date.now();
   }finally{
     if(b && !silent){ b.textContent="🔄 새로고침"; b.disabled=false; }
+    checkReserves();   // 조건 충족 예약 자동 체결
     render();
     const sr=document.getElementById("st-rate");
     if(sr){
@@ -1351,6 +1397,110 @@ async function addLot(){
 function delLot(id){ lots=lots.filter(l=>l.id!=id); save(); render(); }
 function save(){ localStorage.setItem(LS,JSON.stringify(lots)); }
 function clearAll(){ if(confirm("모든 포트폴리오를 삭제할까요?")){ lots=[]; save(); render(); } }
+
+/* ============ 예약매수 (목표가 도달 시 자동 체결) ============ */
+const RESLS="pf_reserve_v1";
+let reserves=JSON.parse(localStorage.getItem(RESLS)||"[]");
+function resSave(){ localStorage.setItem(RESLS,JSON.stringify(reserves)); }
+function toggleRes(){
+  const p=document.getElementById("resPanel");
+  const on=p.classList.toggle("collapsed");
+  document.getElementById("resArrow").textContent=on?"▶":"▼";
+  try{ localStorage.setItem("pf_res_collapsed",on?"1":""); }catch(e){}
+}
+async function addReserve(){
+  const raw=document.getElementById("resSym").value;
+  const qty=parseFloat(document.getElementById("resQty").value);
+  const price=parseFloat(document.getElementById("resPrice").value);
+  const curIn=document.getElementById("resCur").value;
+  const cond=document.getElementById("resCond").value;
+  if(!raw||!raw.trim()||!qty||!price){ alert("종목 / 수량 / 예약가를 입력하세요."); return; }
+  const sym=await resolveSymbol(raw);
+  if(!sym){ alert(`"${raw}" 종목을 찾지 못했습니다.`); return; }
+  let q; try{ q=await yQuote(sym); quotes[sym]=q; }catch(e){ q=quotes[sym]||{price:null,cur:sym.endsWith(".KS")||sym.endsWith(".KQ")?"KRW":"USD"}; }
+  const native=curIn==="auto"? q.cur : curIn;
+  reserves.push({id:Date.now()+Math.random(), raw:raw.trim(), sym, qty, price, native, cond, ts:Date.now()});
+  resSave();
+  document.getElementById("resSym").value=document.getElementById("resQty").value=document.getElementById("resPrice").value="";
+  renderReserves(); refreshAll();
+}
+function delReserve(id){ reserves=reserves.filter(r=>r.id!=id); resSave(); renderReserves(); }
+/* 예약가를 KRW로 (비교용) */
+function resTargetKRW(r){ return toKRW(r.price, r.native, fxNow); }
+function resLiveKRW(r){ const q=quotes[r.sym]; return (q&&q.price!=null)? toKRW(q.price,q.cur,fxNow) : null; }
+/* 조건 충족 여부 */
+function resMet(r){
+  const t=resTargetKRW(r), l=resLiveKRW(r);
+  if(t==null||l==null) return false;
+  return r.cond==="le"? l<=t : l>=t;
+}
+/* 체결: 예약 → 실제 매수 lot으로 전환 */
+function fillReserve(r, auto){
+  const today=new Date().toISOString().slice(0,10);
+  lots.push({id:Date.now()+Math.random(), sym:r.sym, qty:r.qty, price:r.price, native:r.native,
+             date:today, time:"", usdManual:null, bfx:{...fxNow}, fromReserve:true});
+  save();
+  reserves=reserves.filter(x=>x.id!==r.id); resSave();
+  const nm=(typeof symName==="function"?symName(r.sym):r.sym);
+  if(auto){ flashResFilled(r.sym); }
+  else { renderReserves(); }
+  render();
+  // 알림
+  try{ if(auto && Notification && Notification.permission==="granted")
+    new Notification("예약 체결", {body:`${nm} ${r.qty}주 @ ${r.price} 체결됨`}); }catch(e){}
+}
+let _resFilledFlash=null;
+function flashResFilled(sym){ _resFilledFlash=sym; renderReserves(); setTimeout(()=>{_resFilledFlash=null;},2200); }
+/* 매 시세 갱신마다 호출 — 조건 충족 예약 자동 체결 */
+function checkReserves(){
+  let filled=false;
+  for(const r of reserves.slice()){
+    if(resMet(r)){ fillReserve(r, true); filled=true; }
+  }
+  if(filled) renderReserves();
+  else renderReserves();
+}
+function renderReserves(){
+  const panel=document.getElementById("resPanel"); if(!panel) return;
+  document.getElementById("resCount").textContent=`(${reserves.length})`;
+  const tb=document.getElementById("resTab");
+  if(!reserves.length){
+    tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:10px">예약 없음. 위에서 종목·수량·예약가를 넣고 <b>＋ 예약 걸기</b>. 목표가 도달 시 자동 체결됩니다.</td></tr>`;
+    return;
+  }
+  const base=document.getElementById("baseCur")?document.getElementById("baseCur").value:"KRW";
+  const rows=reserves.map(r=>{
+    const q=quotes[r.sym];
+    const liveKRW=resLiveKRW(r), tgtKRW=resTargetKRW(r);
+    const nm=(typeof symName==="function"?symName(r.sym):r.sym);
+    let distTxt="—", distCls="wait", statusTxt="시세 대기";
+    if(liveKRW!=null&&tgtKRW!=null){
+      const distPct=(liveKRW/tgtKRW-1)*100;   // 현재가가 목표 대비 몇 %
+      const met=r.cond==="le"? liveKRW<=tgtKRW : liveKRW>=tgtKRW;
+      distTxt=(distPct>=0?"+":"")+fmt(distPct,2)+"%";
+      const near=Math.abs(distPct)<=2;
+      distCls=near?"near":"wait";
+      statusTxt=met?"체결조건 충족":(r.cond==="le"?"하락 대기":"상승 대기");
+    }
+    const condTxt=r.cond==="le"?"이하 ↓":"이상 ↑";
+    const liveTxt=liveKRW!=null? money(liveKRW,base,fxNow):"—";
+    return `<tr class="${_resFilledFlash===r.sym?'filled':''}">
+      <td>${nm} <span style="color:var(--muted);font-size:7pt">${r.sym}</span></td>
+      <td>${fmt(r.qty,r.qty%1?4:0)}</td>
+      <td>${money(tgtKRW,base,fxNow)} <span style="color:var(--muted);font-size:7pt">${condTxt}</span></td>
+      <td>${liveTxt}</td>
+      <td class="${distCls}">${distTxt}</td>
+      <td style="color:${distCls==='near'?'var(--up)':'var(--muted)'}">${statusTxt}</td>
+      <td style="text-align:center">
+        <button class="resfill" onclick="manualFill('${r.id}')" title="지금 시장가로 체결">지금체결</button>
+        <button class="resx" onclick="delReserve('${r.id}')">✕</button></td></tr>`;
+  }).join("");
+  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가</th><th>현재가</th><th>거리</th><th>상태</th><th></th></tr></thead><tbody>${rows}</tbody>`;
+}
+function manualFill(id){
+  const r=reserves.find(x=>String(x.id)===String(id)); if(!r) return;
+  if(confirm(`${(typeof symName==="function"?symName(r.sym):r.sym)} ${r.qty}주를 지금 예약가(${r.price})로 체결할까요?`)) fillReserve(r, false);
+}
 function loadSample(){
   lots=[
    {id:1,sym:"005930.KS",qty:10,price:71000,native:"KRW",date:"2024-01-05",bfx:{USDKRW:1310,JPYKRW:9.0,EURKRW:1440,BTCUSD:44000}},
@@ -2894,7 +3044,18 @@ const XFER_FEE={
   SOL:0.01, HBAR:1, EOS:0.1, VET:20, LTC:0.001, BCH:0.001, ETH:0.01, AVAX:0.01,
   NEAR:0.1, APT:0.01, SUI:0.5, SEI:1, ARB:1, OP:0.2, POL:0.1, LINK:0.1
 };
-const SCAN_COINS=Object.keys(XFER_FEE);
+/* 전송 속도 = 거래소 입금 확정까지 대략 시간(블록시간×필요컨펌).
+   빠를수록 전송 중 가격변동 리스크 작음. slow는 스캐너서 배제. */
+const XFER_SPEED={
+  XRP:"fast", XLM:"fast", TRX:"fast", SOL:"fast", ALGO:"fast", HBAR:"fast",
+  SEI:"fast", APT:"fast", SUI:"fast", ATOM:"fast", NEAR:"fast", AVAX:"fast",
+  EOS:"fast", VET:"fast",
+  DOT:"med", ARB:"med", OP:"med", POL:"med",
+  ADA:"slow", DOGE:"slow", LTC:"slow", BCH:"slow", ETH:"slow", LINK:"slow"
+};
+const SPEED_LABEL={fast:"⚡빠름", med:"보통", slow:"🐢느림"};
+/* 느린(slow) 코인은 애초에 스캔 대상서 제외 */
+const SCAN_COINS=Object.keys(XFER_FEE).filter(c=>XFER_SPEED[c]!=="slow");
 let scanData=[], _scanTs=0;
 /* 업비트 rate limit 회피: 마켓목록 1시간 캐시(전체 호출 대신 소량 호출용 필터), 티커 25초 캐시, 프록시 폴백 */
 let _upMarkets=null, _upMarketsTs=0, _upScan={}, _upScanTs=0;
@@ -2943,6 +3104,7 @@ function computeScan(up, bn, by, fx){
   if(!up||!fx) return [];
   const out=[];
   for(const c in up){
+    if(c==="BTC") continue;  // BTC는 송금 대상(목적지)이라 다리 후보서 제외
     const upP=up[c]; if(!(upP>0)) continue;
     const gBn=bn[c], gBy=by[c];
     // 팔 때 더 비싼(=역프 더 큰) 거래소 선택
@@ -2961,7 +3123,9 @@ function computeScan(up, bn, by, fx){
     const feePct=bridgeable? (feeCoin*upP)/amt*100 : null;
     // 순차익 = (-프리미엄=할인) - 출금료% - 바이낸스 거래 0.2%(알트→USDT→BTC)
     const net= bridgeable? (-prem) - feePct - (FEE.binTrade*2*100) : null;
-    out.push({coin:c, upP, gPx, destName, prem, bridgeable, feeCoin, feePct, net});
+    const speed=XFER_SPEED[c]||"med";
+    if(speed==="slow") continue;  // 느린 전송 배제(가격변동 리스크)
+    out.push({coin:c, upP, gPx, destName, prem, bridgeable, feeCoin, feePct, net, speed});
   }
   // 정렬: 전송적합 우선 + 순차익 큰 순, 나머지는 프리미엄(할인 큰) 순
   return out;
@@ -3177,10 +3341,10 @@ function renderScan(){
       ? `<td class="${x.net>0?'net-pos':'net-neg'}">${x.net>=0?"+":""}${fmt(x.net,2)}%</td>`
       : `<td class="net-neg">확인필요</td>`;
     const feeCell = x.feePct!=null? fmt(x.feePct,3)+"%" : "—";
-    const tag = x.bridgeable? `<span class="tag">전송적합</span>` : "";
+    const spd = x.speed==="fast"? `<span class="spd fast">⚡빠름</span>` : `<span class="spd med">보통</span>`;
     return `<tr class="${(i===0)?'best':''}">
       <td>${i+1}</td>
-      <td>${x.coin} ${tag}</td>
+      <td>${x.coin} ${spd}</td>
       <td>₩${fmt(x.upP, x.upP<10?4:0)}</td>
       <td>$${fmt(x.gPx, x.gPx<1?4:2)}<br><span class="dest">${x.destName}</span></td>
       <td class="${premCls}">${x.prem>=0?"+":""}${fmt(x.prem,2)}%</td>
@@ -3271,8 +3435,14 @@ function renderAccLedger(){
 render();
 refreshAll();
 renderMemo();
+renderReserves();
 homeRefresh();
 calcFut();
+// 예약매수 패널 접힘 상태 복원
+try{ if(localStorage.getItem("pf_res_collapsed")){
+  document.getElementById("resPanel").classList.add("collapsed");
+  document.getElementById("resArrow").textContent="▶";
+} }catch(e){}
 // 청산 방어 패널 접힘 상태 복원
 try{ if(localStorage.getItem("pf_def_collapsed")){
   document.getElementById("futdef").classList.add("collapsed");
