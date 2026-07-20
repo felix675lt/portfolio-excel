@@ -442,6 +442,28 @@
   .kimptab .prem-pos{color:var(--up);font-weight:700}
   .kimptab .prem-neg{color:#0a7a3a;font-weight:700}
   body.dark .kimptab .prem-neg{color:#4ecb7a}
+  .scanhead{margin-top:12px;font-size:9.5pt;font-weight:600;display:flex;flex-wrap:wrap;
+    align-items:center;gap:8px}
+  .scanhead b{color:var(--ribbon)}
+  .scanctl{margin-left:auto;display:flex;gap:10px;align-items:center;font-size:8.5pt;font-weight:400}
+  .scanctl label{display:flex;align-items:center;gap:3px;cursor:pointer}
+  .scanstamp{color:var(--muted);font-size:7.5pt}
+  .scanwrap{max-height:340px;overflow:auto;margin-top:6px;border:1px solid var(--grid);border-radius:6px}
+  .scantab{border-collapse:collapse;width:100%;font-size:8.5pt;font-variant-numeric:tabular-nums}
+  .scantab th,.scantab td{border:1px solid var(--grid);padding:4px 8px;text-align:right;white-space:nowrap}
+  .scantab th{background:var(--ribbon);color:#fff;position:sticky;top:0;text-align:center;z-index:1}
+  .scantab td:nth-child(2){text-align:left;font-weight:600}
+  .scantab td:nth-child(4){text-align:center}
+  .scantab tr:nth-child(even) td{background:var(--band)}
+  .scantab tr.best td{background:#d8f0dd;font-weight:700}
+  body.dark .scantab tr.best td{background:#1f3a26}
+  .scantab .prem-neg{color:#0a7a3a;font-weight:700}
+  .scantab .prem-pos{color:var(--up);font-weight:700}
+  body.dark .scantab .prem-neg{color:#4ecb7a}
+  .scantab .net-pos{color:#0a7a3a;font-weight:700}
+  .scantab .net-neg{color:var(--muted)}
+  .scantab .tag{font-size:7pt;padding:0 4px;border-radius:6px;background:var(--ribbon);color:#fff}
+  .scantab .dest{font-size:7.5pt;color:var(--muted)}
   .accnote{font-size:7.5pt;color:var(--muted);margin-top:8px;font-style:italic}
   .accstale{color:#c0392b;font-weight:700;font-size:8pt}
   .accledger{padding:10px 14px}
@@ -929,8 +951,16 @@
         <b>비용</b> → 바이낸스 거래 2번(~0.15%) + <b>전송 중 가격 변동 리스크</b>(몇 분). 이 비용보다 이득이 커야 다리 경로가 유리해요.<br>
         <span style="color:var(--muted)">※ USDT 경로는 역프를 못 실어 항상 불리. ※ 수수료는 거래소·시점마다 달라 근사치.</span>
       </div>
-      <table class="kimptab" id="kimpTab"></table>
-      <div class="accnote">정보 제공용 · 투자자문 아님 · 프리미엄은 수분 단위로 변동 · <span id="acStamp"></span></div>
+      <div class="scanhead">
+        🔍 <b>최적 송금 코인 스캐너</b> — 업비트 → 바이낸스/바이비트, 지금 어느 코인이 가장 이득?
+        <span class="scanctl">
+          <label><input type="radio" name="scanScope" value="bridge" checked onchange="renderScan()"> 전송적합 코인</label>
+          <label><input type="radio" name="scanScope" value="all" onchange="renderScan()"> 전체 공통(<span id="scanAllN">–</span>)</label>
+          <span class="scanstamp" id="scanStamp"></span>
+        </span>
+      </div>
+      <div class="scanwrap"><table class="scantab" id="scanTab"></table></div>
+      <div class="accnote">순차익 = 역프(할인) − 출금수수료 − 바이낸스 거래 0.2% · 전송 중 가격변동 리스크 별도 · 출금료는 근사치(거래소서 확인) · 정보 제공용, 투자자문 아님 · <span id="acStamp"></span></div>
     </div>
     <div class="fbar">
       <div class="namebox">A1</div><div class="fx"><i>fx</i></div>
@@ -2855,6 +2885,61 @@ function saveFees(){
   if(typeof renderKimp==="function") renderKimp(false);
 }
 function resetFees(){ FEE={...FEE_DEFAULT}; try{localStorage.removeItem(FEELS);}catch(e){} fillFeeInputs(); renderKimp(false); }
+
+/* ===== 최적 송금 코인 스캐너 ===== */
+/* 전송적합 코인 = 네트워크 빠르고 출금료 싸며 바이낸스/바이비트 유동성 좋은 코인.
+   값 = 업비트 출금 수수료(코인 단위, 근사치 — 거래소서 확인). */
+const XFER_FEE={
+  XRP:0.4, TRX:1, XLM:0.01, ADA:0.4, DOGE:4, ALGO:0.1, ATOM:0.05, DOT:0.05,
+  SOL:0.01, HBAR:1, EOS:0.1, VET:20, LTC:0.001, BCH:0.001, ETH:0.01, AVAX:0.01,
+  NEAR:0.1, APT:0.01, SUI:0.5, SEI:1, ARB:1, OP:0.2, MATIC:0.1, POL:0.1,
+  LINK:0.1, DOGE2:0
+};
+let scanData=[], _scanTs=0;
+/* 업비트 전체 KRW 티커 + 바이낸스/바이비트 전체가 → 코인별 프리미엄·최적 목적지 */
+async function scanFetch(){
+  const [upMk, bnAll, byAll] = await Promise.all([
+    (async()=>{ try{ const m=await fetch("https://api.upbit.com/v1/market/all?isDetails=false",{cache:"no-store"}).then(r=>r.json());
+       const krw=m.filter(x=>x.market.startsWith("KRW-")).map(x=>x.market);
+       const t=await fetch("https://api.upbit.com/v1/ticker?markets="+krw.join(","),{cache:"no-store"}).then(r=>r.json());
+       const o={}; t.forEach(x=>o[x.market.replace("KRW-","")]=x.trade_price); return o;
+     }catch(e){ return null; } })(),
+    bget("https://api.binance.com/api/v3/ticker/price").catch(()=>null),
+    bget("https://api.bybit.com/v5/market/tickers?category=spot").catch(()=>null)
+  ]);
+  const bn={}, by={};
+  if(Array.isArray(bnAll)) bnAll.forEach(x=>{ if(x.symbol.endsWith("USDT")) bn[x.symbol.slice(0,-4)]=+x.price; });
+  if(byAll&&byAll.result&&Array.isArray(byAll.result.list)) byAll.result.list.forEach(x=>{ if(x.symbol.endsWith("USDT")) by[x.symbol.slice(0,-4)]=+x.lastPrice; });
+  return {up:upMk, bn, by};
+}
+/* 스캔 계산: 각 코인 프리미엄(최적 목적지 선택) + 순차익 */
+function computeScan(up, bn, by, fx){
+  if(!up||!fx) return [];
+  const out=[];
+  for(const c in up){
+    const upP=up[c]; if(!(upP>0)) continue;
+    const gBn=bn[c], gBy=by[c];
+    // 팔 때 더 비싼(=역프 더 큰) 거래소 선택
+    const dests=[]; if(gBn>0) dests.push(["바이낸스",gBn]); if(gBy>0) dests.push(["바이비트",gBy]);
+    if(!dests.length) continue;
+    dests.sort((a,b)=>b[1]-a[1]); // 글로벌가 높은 곳 우선(매도 유리)
+    const [destName,gPx]=dests[0];
+    const prem=(upP/(gPx*fx)-1)*100;  // 음수=역프(보내면 이득)
+    // 티커 오매칭 필터: 실제 김프/역프는 ±15% 안. 벗어나면 다른 코인(동명이코인)일 가능성 → 제외
+    if(!isFinite(prem)||Math.abs(prem)>15) continue;
+    // 출금료 % (근사, 전송적합 코인만)
+    const feeCoin=XFER_FEE[c];
+    const bridgeable=feeCoin!=null;
+    // 이번달 추천액 기준 출금료 % = feeCoin*업비트가 / 금액
+    const amt=(kimpLast.rec&&kimpLast.rec.reco)||ACC_FLOOR_MONTHLY;
+    const feePct=bridgeable? (feeCoin*upP)/amt*100 : null;
+    // 순차익 = (-프리미엄=할인) - 출금료% - 바이낸스 거래 0.2%(알트→USDT→BTC)
+    const net= bridgeable? (-prem) - feePct - (FEE.binTrade*2*100) : null;
+    out.push({coin:c, upP, gPx, destName, prem, bridgeable, feeCoin, feePct, net});
+  }
+  // 정렬: 전송적합 우선 + 순차익 큰 순, 나머지는 프리미엄(할인 큰) 순
+  return out;
+}
 /* 두 경로로 같은 원화를 넣었을 때 최종 BTC 개수 비교 */
 function routeCompare(krw, up, bn, usdkrw, bridge, toWallet){
   if(!(krw>0)||!up||!bn||!(usdkrw>0)) return null;
@@ -2944,15 +3029,21 @@ function accRecommend(btcUSD, P){
 async function kimpRefresh(){
   if(curTab!=="acc"||_kimpInflight) return;
   _kimpInflight=true;
-  let up,bn,usdkrw, ok=true;
+  let up,bn,usdkrw, scan, ok=true;
   try{
-    [up,bn,usdkrw]=await Promise.all([upbitKRW(), globalUSDT(), accUsdKrw()]);
+    [up,bn,usdkrw,scan]=await Promise.all([upbitKRW(), globalUSDT(), accUsdKrw(), scanFetch().catch(()=>null)]);
   }catch(e){ ok=false; }
   // 세 값 중 하나라도 없으면 마지막값 유지 + 지연 표기
   const haveNew = up&&up.BTC>0 && bn&&bn.BTC>0 && usdkrw>0;
-  if(haveNew){ kimpLast={up,bn,usdkrw,ts:Date.now()}; }
+  if(haveNew){ const prevRec=kimpLast.rec; kimpLast={up,bn,usdkrw,ts:Date.now(),rec:prevRec}; }
+  // 스캔 데이터 갱신
+  if(scan&&scan.up&&Object.keys(scan.up).length){
+    scanData=computeScan(scan.up, scan.bn, scan.by, usdkrw||kimpLast.usdkrw);
+    _scanTs=Date.now();
+  }
   _kimpInflight=false;
   renderKimp(!haveNew);
+  renderScan();
 }
 function renderKimp(stale){
   const {up,bn,usdkrw,ts}=kimpLast;
@@ -2968,6 +3059,7 @@ function renderKimp(stale){
   document.getElementById("acUp").textContent = "₩"+fmt(up.BTC,0);
   document.getElementById("acBn").textContent = "₩"+fmt(bnKRW,0)+"  ($"+fmt(bn.BTC,0)+" × "+fmt(usdkrw,1)+")";
   const rec = accRecommend(bn.BTC, P);
+  kimpLast.rec = rec;   // 스캐너 출금료% 계산에 사용
   document.getElementById("acDd").textContent = fmt(rec.dd,1)+"%  (ATH $"+fmt(ACC_ATH,0)+")";
   // 이번 달 추천 카드
   const btcQty = up.BTC>0? rec.reco/up.BTC : 0;
@@ -3007,21 +3099,57 @@ function renderKimp(stale){
     }
   } else { route="코인별 프리미엄 계산 대기중…"; }
   document.getElementById("accRoute").innerHTML=route;
-  // 코인별 프리미엄 테이블
-  const prow=(c,upv,bnv)=>{
-    const p=premium(upv,bnv,usdkrw);
-    const cls=p==null?"":(p>=0?"prem-pos":"prem-neg");
-    return `<tr><td>${c}</td><td>₩${fmt(upv,upv<100?4:0)}</td><td>$${fmt(bnv,bnv<1?4:2)}</td>
-      <td class="${cls}">${p==null?"—":(p>=0?"+":"")+fmt(p,2)+"%"}</td></tr>`;
-  };
-  document.getElementById("kimpTab").innerHTML=
-    `<tr><th>코인</th><th>업비트(원)</th><th>글로벌($)</th><th>프리미엄</th></tr>`+
-    prow("BTC",up.BTC,bn.BTC)+prow("XRP",up.XRP,bn.XRP)+prow("TRX",up.TRX,bn.TRX);
   document.getElementById("acbrief").textContent=
     `=KIMP() · BTC ${P==null?"—":(P>=0?"+":"")+fmt(P,2)+"%"} ${sig.label} · 드로다운 ${fmt(rec.dd,1)}% · 이번달 추천 ₩${fmt(rec.reco,0)}`;
   if(stamp) stamp.innerHTML = stale
     ? `<span class="accstale">지연 (마지막 ${new Date(ts).toLocaleTimeString("ko-KR")})</span>`
     : `${new Date(ts).toLocaleTimeString("ko-KR")} 갱신`;
+}
+
+/* ── 최적 송금 코인 스캐너 렌더 ── */
+function renderScan(){
+  const tb=document.getElementById("scanTab"); if(!tb) return;
+  const scopeEl=document.querySelector('input[name="scanScope"]:checked');
+  const scope=scopeEl?scopeEl.value:"bridge";
+  const allN=document.getElementById("scanAllN"); if(allN) allN.textContent=scanData.length||"–";
+  const st=document.getElementById("scanStamp");
+  if(st) st.textContent=_scanTs?`${scanData.length}코인 · ${new Date(_scanTs).toLocaleTimeString("ko-KR")} 갱신`:"로딩중…";
+  if(!scanData.length){
+    tb.innerHTML=`<tr><td style="padding:16px;text-align:center;color:var(--muted)">스캔 로딩중… (업비트·바이낸스·바이비트 실시간)</td></tr>`; return;
+  }
+  let list=scanData.slice();
+  if(scope==="bridge"){
+    list=list.filter(x=>x.bridgeable).sort((a,b)=>b.net-a.net);
+  } else {
+    // 전체: 프리미엄(할인 큰=음수) 순
+    list.sort((a,b)=>a.prem-b.prem);
+    list=list.slice(0,40);
+  }
+  const rows=list.map((x,i)=>{
+    const premCls=x.prem<0?"prem-neg":"prem-pos";
+    const netCell = x.net!=null
+      ? `<td class="${x.net>0?'net-pos':'net-neg'}">${x.net>=0?"+":""}${fmt(x.net,2)}%</td>`
+      : `<td class="net-neg">확인필요</td>`;
+    const feeCell = x.feePct!=null? fmt(x.feePct,3)+"%" : "—";
+    const tag = x.bridgeable? `<span class="tag">전송적합</span>` : "";
+    return `<tr class="${(scope==='bridge'&&i===0)?'best':''}">
+      <td>${i+1}</td>
+      <td>${x.coin} ${tag}</td>
+      <td>₩${fmt(x.upP, x.upP<10?4:0)}</td>
+      <td>$${fmt(x.gPx, x.gPx<1?4:2)}<br><span class="dest">${x.destName}</span></td>
+      <td class="${premCls}">${x.prem>=0?"+":""}${fmt(x.prem,2)}%</td>
+      <td>${feeCell}</td>
+      ${netCell}</tr>`;
+  }).join("");
+  tb.innerHTML=
+    `<thead><tr><th>#</th><th>코인</th><th>업비트</th><th>글로벌(최적)</th><th>프리미엄</th><th>~출금료</th><th>순차익</th></tr></thead>`+
+    `<tbody>${rows}</tbody>`;
+  // 최적 코인을 acbrief에도 요약
+  if(scope==="bridge"&&list.length){
+    const best=list[0];
+    const el=document.getElementById("scanBest");
+    if(el) el.textContent=`${best.coin} (${fmt(best.net,2)}%)`;
+  }
 }
 
 /* ── 적립 포트폴리오 원장 ── */
