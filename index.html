@@ -417,9 +417,20 @@
   .accreco{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
   .accreco .ocard{min-width:130px}
   .accreco .ocard.hi{border-color:#1f8f4e;border-width:2px}
-  .accroute{margin-top:10px;padding:8px 12px;background:var(--cell-bg);border:1px solid var(--grid);
+  .accroutectl{margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:8.5pt}
+  .accroutectl label{display:flex;align-items:center;gap:4px;cursor:pointer}
+  .accroutectl .fdhint{color:var(--muted);font-size:7.5pt}
+  .acgtoggle{margin-left:auto;color:var(--ribbon);cursor:pointer;font-weight:600}
+  .acgtoggle:hover{text-decoration:underline}
+  .accroute{margin-top:6px;padding:8px 12px;background:var(--cell-bg);border:1px solid var(--grid);
     border-radius:6px;font-size:9pt;line-height:1.6}
   .accroute b{color:var(--ribbon)}
+  .accroute .win{color:#0f7a3a;font-weight:700}
+  body.dark .accroute .win{color:#4ecb7a}
+  .accrguide{display:none;margin-top:6px;padding:9px 12px;background:var(--band);
+    border:1px solid var(--grid);border-radius:6px;font-size:8.5pt;line-height:1.65}
+  .accrguide.on{display:block}
+  .accrguide b{color:var(--ribbon)}
   .kimptab{border-collapse:collapse;margin-top:10px;font-size:8.5pt}
   .kimptab th,.kimptab td{border:1px solid var(--grid);padding:4px 12px;text-align:right}
   .kimptab th{background:var(--ribbon);color:#fff;text-align:center}
@@ -886,7 +897,22 @@
         </div>
         <div class="accreco" id="accReco"></div>
       </div>
+      <div class="accroutectl">
+        <label title="BTC를 거래소에 두지 않고 개인(콜드) 지갑으로 옮길 경우 체크. 업비트 BTC 출금료가 비싸 다리 경로가 유리해질 수 있어요.">
+          <input type="checkbox" id="accToWallet" onchange="renderKimp(false)"> 매수 후 <b>개인지갑으로 출금</b>
+        </label>
+        <span class="fdhint">체크하면 출금 수수료까지 넣어 ‘어느 경로가 BTC 개수 더 많나’ 계산</span>
+        <span class="acgtoggle" onclick="document.getElementById('accRouteGuide').classList.toggle('on')">ⓘ 경로 원리</span>
+      </div>
       <div class="accroute" id="accRoute">경로 추천을 계산하는 중…</div>
+      <div class="accrguide" id="accRouteGuide">
+        <b>🍎 왜 다리(XRP·TRX) 경로가 개수를 늘릴 수 있나</b><br>
+        역프(한국이 쌈)일 때 국내에서 산 코인을 해외로 옮기면 <b>그 코인의 역프만큼 이득</b>이에요.
+        BTC를 직접 사면 BTC 역프만, XRP/TRX를 다리로 쓰면 <b>그 코인의 역프</b>를 실어갑니다(전송 빠르고 수수료 싸서 다리로 씀).<br>
+        <b>이득 원천 2가지</b> → ① 다리 코인이 BTC보다 더 할인돼 있을 때(프리미엄 차) ② 개인지갑 출금 시 업비트 BTC 출금료(0.0009 BTC)가 바이낸스(~0.0002 BTC)보다 비싼 차이.<br>
+        <b>비용</b> → 바이낸스 거래 2번(~0.15%) + <b>전송 중 가격 변동 리스크</b>(몇 분). 이 비용보다 이득이 커야 다리 경로가 유리해요.<br>
+        <span style="color:var(--muted)">※ USDT 경로는 역프를 못 실어 항상 불리. ※ 수수료는 거래소·시점마다 달라 근사치.</span>
+      </div>
       <table class="kimptab" id="kimpTab"></table>
       <div class="accnote">정보 제공용 · 투자자문 아님 · 프리미엄은 수분 단위로 변동 · <span id="acStamp"></span></div>
     </div>
@@ -2789,6 +2815,27 @@ const ACC_FLOOR_BUDGET=50000000;   // 바닥선 예산 5천만
 const ACC_FLOOR_MONTHS=18;
 const ACC_FLOOR_MONTHLY=Math.round(ACC_FLOOR_BUDGET/ACC_FLOOR_MONTHS); // 월 2,777,778
 const ACC_STRETCH_BUDGET=50000000; // 스트레치 예산 5천만
+/* 경로 비교 수수료 근사치 (거래소·시점마다 다름) */
+const FEE={
+  upbitTrade:0.0005,   // 업비트 거래 0.05%
+  binTrade:0.001,      // 바이낸스 거래 0.1% (다리 경로는 2회)
+  upbitBtcOut:0.0009,  // 업비트 BTC 출금 (BTC 단위) — 비쌈
+  binBtcOut:0.0002     // 바이낸스 BTC 출금 (BTC 단위)
+};
+/* 두 경로로 같은 원화를 넣었을 때 최종 BTC 개수 비교 */
+function routeCompare(krw, up, bn, usdkrw, bridge, toWallet){
+  if(!(krw>0)||!up||!bn||!(usdkrw>0)) return null;
+  // A) 직접: 업비트서 BTC 매수 (+개인지갑이면 업비트 BTC 출금)
+  let btcA = krw*(1-FEE.upbitTrade)/up.BTC;
+  if(toWallet) btcA -= FEE.upbitBtcOut;
+  // B) 다리: 업비트서 bridge 매수 → 바이낸스 전송 → USDT → BTC (+개인지갑이면 바이낸스 BTC 출금)
+  const altQty = krw*(1-FEE.upbitTrade)/up[bridge];
+  const usdt = altQty*bn[bridge]*(1-FEE.binTrade);   // 알트→USDT
+  let btcB = usdt/bn.BTC*(1-FEE.binTrade);           // USDT→BTC
+  if(toWallet) btcB -= FEE.binBtcOut;
+  return {bridge, btcA:Math.max(0,btcA), btcB:Math.max(0,btcB),
+          diff:btcB-btcA, diffPct:btcA>0?(btcB/btcA-1)*100:0};
+}
 /* 마지막 성공값 캐시 (실패 시 유지) */
 let kimpLast={ up:{}, bn:{}, usdkrw:null, ts:0 };
 let _kimpInflight=false;
@@ -2897,21 +2944,34 @@ function renderKimp(stale){
     card("≈ BTC 수량", rec.remain<=0?"—":"₿ "+fmt(btcQty,6))+
     card("바닥선(월)", "₩"+fmt(rec.floor,0))+
     card("스트레치", rec.stretch>0?"₩"+fmt(rec.stretch,0)+" (×"+sig.w+")":(rec.stretchBase>0?"보류(프리미엄)":"₩0"));
-  // 경로 추천
-  const pB=P, pX=premium(up.XRP,bn.XRP,usdkrw), pT=premium(up.TRX,bn.TRX,usdkrw);
+  // 경로 추천 — 실제 BTC 개수 비교 (직접 vs 다리)
+  const pX=premium(up.XRP,bn.XRP,usdkrw), pT=premium(up.TRX,bn.TRX,usdkrw);
+  const toWallet=document.getElementById("accToWallet")?.checked;
+  // 비교 기준액: 이번달 추천액(없으면 바닥선)
+  const amt = rec.reco>0? rec.reco : ACC_FLOOR_MONTHLY;
+  // 다리 후보: XRP/TRX 중 프리미엄 더 낮은(할인 큰) 코인
+  const bridges=[["XRP",pX],["TRX",pT]].filter(x=>x[1]!=null).sort((a,b)=>a[1]-b[1]);
   let route="";
-  const cmp=[["BTC",pB],["XRP",pX],["TRX",pT]].filter(x=>x[1]!=null);
-  if(cmp.length){
-    cmp.sort((a,b)=>a[1]-b[1]); // 가장 할인(음수 큰) 먼저
-    const best=cmp[0], btcP=pB;
-    if(best[0]==="BTC"){
-      route=`<b>국내 업비트에서 BTC 직접 매수</b>가 최단·최저비용 (BTC가 가장 할인 ${fmt(pB,2)}%).`;
-    } else if(btcP!=null && best[1] <= btcP-0.3){
-      route=`해외 매수 계획이면: <b>${best[0]}</b>가 BTC보다 ${fmt(btcP-best[1],2)}%p 더 할인 → ${best[0]} 매수 → 바이낸스 전송 → 매도 → BTC 전환이 유리.`;
-    } else {
-      route=`<b>국내 업비트에서 BTC 직접 매수</b> 권장 (코인 간 프리미엄 차 미미).`;
+  if(bridges.length && up.BTC>0){
+    const bridge=bridges[0][0];
+    const rc=routeCompare(amt, up, bn, usdkrw, bridge, toWallet);
+    if(rc){
+      const gapBtc=Math.abs(rc.diff), gapPct=Math.abs(rc.diffPct);
+      const amtStr=`₩${fmt(amt,0)} 기준`;
+      const foot=`<br><span style="color:var(--muted);font-size:8pt">${toWallet?"개인지갑 출금 수수료 반영":"거래소 보관 기준 · 개인지갑 출금 체크 시 달라짐"} · 전송 중 가격 변동 리스크 별도 · USDT 경로는 역프 못 실어 제외</span>`;
+      if(rc.diffPct>0.3){          // 다리 경로 확실히 유리
+        route=`💡 <span class="win">${bridge} 다리 경로가 BTC 개수 더 많음</span> (${amtStr})<br>`
+          +`&nbsp;&nbsp;업비트 <b>${bridge}</b> 매수 → 바이낸스 전송 → BTC 전환${toWallet?` → 개인지갑 출금`:""}: <b>₿${fmt(rc.btcB,6)}</b><br>`
+          +`&nbsp;&nbsp;vs 업비트 BTC 직접${toWallet?` → 출금`:""}: ₿${fmt(rc.btcA,6)} &nbsp;→ <span class="win">+₿${fmt(gapBtc,6)} (+${fmt(gapPct,2)}%)</span>`+foot;
+      } else if(rc.diffPct<-0.05){ // 직접이 유리
+        route=`✅ <span class="win">업비트에서 BTC 직접 매수가 유리</span> (${amtStr})<br>`
+          +`&nbsp;&nbsp;직접${toWallet?` → 출금`:""}: <b>₿${fmt(rc.btcA,6)}</b> vs ${bridge} 다리: ₿${fmt(rc.btcB,6)} `
+          +`<span style="color:var(--muted)">(다리 −${fmt(gapPct,2)}% — 거래·전송 비용이 프리미엄 차보다 큼)</span>`+foot;
+      } else {                     // 사실상 동률
+        route=`⚖️ <b>거의 같음</b> (${amtStr}, 차이 ${fmt(gapPct,2)}%) → <span class="win">직접 매수가 단순·안전</span><br>`
+          +`&nbsp;&nbsp;전송 중 가격 변동 리스크가 이 정도 차이보다 클 수 있어요. ${bridge} 다리로 크게 벌려면 프리미엄 차가 더 벌어져야(또는 개인지갑 출금 시).`+foot;
+      }
     }
-    route+=` <span style="color:var(--muted)">※ USDT 경로는 역프를 못 실어 불리.</span>`;
   } else { route="코인별 프리미엄 계산 대기중…"; }
   document.getElementById("accRoute").innerHTML=route;
   // 코인별 프리미엄 테이블
