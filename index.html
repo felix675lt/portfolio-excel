@@ -1100,6 +1100,26 @@
         <table class="accgrid" id="accGrid"></table>
         <div class="accnote">평가·손익은 현재 시세 기준 · 세금/수수료 미반영 · 정보 제공용, 투자자문 아님</div>
       </div>
+      <div class="accledger" id="arbSection">
+        <h3 style="font-size:10pt;margin:4px 0 8px">💱 차익거래 기록 (역프/김프) <span id="arbSummary" style="font-weight:400;font-size:8pt;color:var(--muted)"></span></h3>
+        <div class="accinput">
+          <label>날짜<input type="date" id="arbDate" style="width:126px"></label>
+          <label>방향
+            <select id="arbDir" onchange="arbDirHint()">
+              <option value="out">역프 ▶ 원화→코인→해외→USDT</option>
+              <option value="in">김프 ◀ USDT→코인→국내→원화</option>
+            </select></label>
+          <label>다리 코인<input type="text" id="arbCoin" placeholder="XLM" list="arbCoinList" style="width:90px">
+            <datalist id="arbCoinList"></datalist></label>
+          <label id="arbKrwLab">투입 원화<input type="number" id="arbKrw" placeholder="5000000" step="any" style="width:118px"></label>
+          <label id="arbUsdtLab">받은 USDT<input type="number" id="arbUsdt" placeholder="3412" step="any" style="width:100px"></label>
+          <label>기준 환율<input type="number" id="arbRate" placeholder="자동" step="any" style="width:90px" title="당시 시장 USD/KRW (비우면 현재 환율)"></label>
+          <label>프리미엄%<input type="number" id="arbPrem" placeholder="-1.7" step="any" style="width:74px" title="당시 김프(+)/역프(-) — 참고용"></label>
+          <button class="btn" onclick="addArb()">＋ 기록</button>
+        </div>
+        <table class="accgrid" id="arbTab"></table>
+        <div class="accnote">차익 = (받은 USDT × 기준환율) − 투입 원화 · 수수료·전송비 포함된 실제 결과를 넣으면 그대로 반영 · USDT 잔고는 아웃(+)/인(−) 누적</div>
+      </div>
     </div>
   </div>
 
@@ -1939,7 +1959,7 @@ function showTab(t){
   else if(t==="fut") futRefresh();
   else if(t==="div"){ renderDivCat(); loadTrumpNews(); renderMyDivOut(); if(!_divInited){ _divInited=true; calcDiv(); initMyDiv(); } }
   else if(t==="str"){ if(!_strInited){ _strInited=true; renderStratPicker(); pickStrategy("allw"); updRot(); } }
-  else if(t==="acc"){ if(!_accInited){ _accInited=true; accInit(); } renderAccLedger(); kimpRefresh(); }
+  else if(t==="acc"){ if(!_accInited){ _accInited=true; accInit(); } renderAccLedger(); renderArb(); kimpRefresh(); }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
 }
 
@@ -3687,6 +3707,7 @@ async function kimpRefresh(){
   _kimpInflight=false;
   renderKimp(!haveNew);
   renderScan();
+  if(typeof renderArb==="function") renderArb();   // 환율 갱신 → 잔고 원화가치 재계산
 }
 function renderKimp(stale){
   const {up,bn,usdkrw,ts}=kimpLast;
@@ -3864,11 +3885,99 @@ function renderAccLedger(){
      <span style="color:var(--muted);font-size:8pt">바닥선 예산 ₩${fmt(ACC_FLOOR_BUDGET,0)}(월 ₩${fmt(ACC_FLOOR_MONTHLY,0)}×${ACC_FLOOR_MONTHS}개월) + 스트레치 예산 ₩${fmt(ACC_STRETCH_BUDGET,0)}</span>`;
 }
 
+/* ============ 차익거래 기록 (역프 아웃 / 김프 인) ============ */
+const ARBLS="pf_arb_v1";
+let arbLog=JSON.parse(localStorage.getItem(ARBLS)||"[]");
+function arbSave(){ localStorage.setItem(ARBLS,JSON.stringify(arbLog)); }
+function arbDirHint(){
+  const out=document.getElementById("arbDir").value==="out";
+  const kl=document.getElementById("arbKrwLab"), ul=document.getElementById("arbUsdtLab");
+  if(kl) kl.childNodes[0].nodeValue = out? "투입 원화" : "받은 원화";
+  if(ul) ul.childNodes[0].nodeValue = out? "받은 USDT" : "투입 USDT";
+}
+function addArb(){
+  const date=document.getElementById("arbDate").value||new Date().toISOString().slice(0,10);
+  const dir=document.getElementById("arbDir").value;
+  const coin=(document.getElementById("arbCoin").value||"").trim().toUpperCase()||"—";
+  const krw=+document.getElementById("arbKrw").value||0;
+  const usdt=+document.getElementById("arbUsdt").value||0;
+  const rate=+document.getElementById("arbRate").value|| fxNow.USDKRW ||0;
+  const prem=document.getElementById("arbPrem").value===""? null : +document.getElementById("arbPrem").value;
+  if(krw<=0||usdt<=0){ alert("원화와 USDT 금액을 모두 입력하세요."); return; }
+  if(!(rate>0)){ alert("기준 환율을 못 구했습니다. 직접 입력해 주세요."); return; }
+  arbLog.push({id:Date.now()+Math.random(), date, dir, coin, krw, usdt, rate, prem});
+  arbLog.sort((a,b)=>a.date.localeCompare(b.date));
+  arbSave();
+  document.getElementById("arbKrw").value=document.getElementById("arbUsdt").value="";
+  document.getElementById("arbPrem").value="";
+  renderArb();
+}
+function delArb(id){ arbLog=arbLog.filter(a=>a.id!=id); arbSave(); renderArb(); }
+function _arbFind(id){ return arbLog.find(a=>String(a.id)===String(id)); }
+function setArbF(id,f,v){ const a=_arbFind(id); if(!a) return;
+  a[f]= (f==="date"||f==="coin"||f==="dir")? v : Math.max(0,+v||0);
+  arbSave(); renderArb(); }
+/* 한 건의 차익: 아웃=USDT가치−투입원화, 인=회수원화−USDT가치 */
+function arbGain(a){
+  const val=a.usdt*(a.rate||0);
+  return a.dir==="out"? (val - a.krw) : (a.krw - val);
+}
+function renderArb(){
+  const tb=document.getElementById("arbTab"); if(!tb) return;
+  // 스캐너 코인을 datalist로
+  const dl=document.getElementById("arbCoinList");
+  if(dl && typeof scanData!=="undefined" && scanData.length)
+    dl.innerHTML=scanData.slice(0,20).map(x=>`<option>${x.coin}</option>`).join("");
+  let totGain=0, usdtBal=0, wins=0;
+  arbLog.forEach(a=>{ const g=arbGain(a); totGain+=g; if(g>0) wins++;
+    usdtBal += (a.dir==="out"? a.usdt : -a.usdt); });
+  const sum=document.getElementById("arbSummary");
+  if(sum) sum.innerHTML = arbLog.length
+    ? `— ${arbLog.length}건 · 누적 차익 <b style="color:${totGain>=0?'var(--up)':'var(--down)'}">${totGain>=0?"+":""}₩${fmt(totGain,0)}</b> · USDT 잔고 <b>$${fmt(usdtBal,2)}</b> · 성공 ${wins}/${arbLog.length}`
+    : `— 역프에 나가고 김프에 들어온 기록을 남기면 누적 차익과 USDT 잔고가 계산됩니다`;
+  if(!arbLog.length){
+    tb.innerHTML=`<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">
+      기록 없음. 예) 역프 −1.7%에 ₩5,000,000으로 XLM 매수 → 바이낸스 전송 → USDT 전환 후 받은 USDT 입력</td></tr>`;
+    return;
+  }
+  const rows=arbLog.map(a=>{
+    const g=arbGain(a);
+    const eff=a.usdt>0? a.krw/a.usdt : 0;             // 실효 환율(원/USDT)
+    const base=a.dir==="out"? a.krw : a.usdt*(a.rate||0);
+    const gpct=base>0? g/base*100 : 0;
+    const dirTxt=a.dir==="out"? "역프▶out" : "김프◀in";
+    return `<tr>
+      <td><input class="rin wide" type="date" value="${a.date}" onchange="setArbF('${a.id}','date',this.value)" style="width:116px"></td>
+      <td><select class="rsel" onchange="setArbF('${a.id}','dir',this.value)">
+        <option value="out" ${a.dir==="out"?"selected":""}>역프▶out</option>
+        <option value="in" ${a.dir==="in"?"selected":""}>김프◀in</option></select></td>
+      <td><input class="rin" type="text" value="${a.coin}" onchange="setArbF('${a.id}','coin',this.value.toUpperCase())" style="width:56px;text-align:center"></td>
+      <td><input class="rin wide" type="number" step="any" value="${a.krw}" onchange="setArbF('${a.id}','krw',this.value)"></td>
+      <td><input class="rin" type="number" step="any" value="${a.usdt}" onchange="setArbF('${a.id}','usdt',this.value)"></td>
+      <td>₩${fmt(eff,2)}</td>
+      <td><input class="rin" type="number" step="any" value="${a.rate}" onchange="setArbF('${a.id}','rate',this.value)" style="width:78px"></td>
+      <td>${a.prem==null?"—":(a.prem>=0?"+":"")+fmt(a.prem,2)+"%"}</td>
+      <td style="color:${g>=0?'var(--up)':'var(--down)'};font-weight:700">${g>=0?"+":""}₩${fmt(g,0)}</td>
+      <td style="color:${g>=0?'var(--up)':'var(--down)'}">${g>=0?"+":""}${fmt(gpct,2)}%
+        <button class="delx" onclick="delArb('${a.id}')" title="삭제">✕</button></td></tr>`;
+  }).join("");
+  tb.innerHTML=
+    `<thead><tr><th>날짜</th><th>방향</th><th>코인</th><th>원화</th><th>USDT</th><th>실효환율</th><th>기준환율</th><th>프리미엄</th><th>차익(원)</th><th>차익%</th></tr></thead>`
+    +`<tbody>${rows}</tbody>`
+    +`<tfoot><tr><td colspan="3">합계 ${arbLog.length}건</td>
+        <td colspan="2">USDT 잔고 <b>$${fmt(usdtBal,2)}</b></td>
+        <td colspan="3">잔고 원화가치 ${fxNow.USDKRW?("₩"+fmt(usdtBal*fxNow.USDKRW,0)):"—"}</td>
+        <td style="color:${totGain>=0?'var(--up)':'var(--down)'}">${totGain>=0?"+":""}₩${fmt(totGain,0)}</td>
+        <td>성공 ${wins}/${arbLog.length}</td></tr></tfoot>`;
+}
+
 render();
 refreshAll();
 renderMemo();
 renderReserves();
 renderFx();
+renderArb();
+try{ const ad=document.getElementById("arbDate"); if(ad&&!ad.value) ad.value=new Date().toISOString().slice(0,10); }catch(e){}
 homeRefresh();
 calcFut();
 // 예약매수 패널 접힘 상태 복원
