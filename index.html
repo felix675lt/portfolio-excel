@@ -113,6 +113,12 @@
   .restab .near{color:var(--up);font-weight:700}
   .restab .wait{color:var(--muted)}
   .restab .won2{color:var(--muted);font-size:7pt}
+  .restab .rin{width:74px;text-align:right;font-family:inherit;font-size:8.5pt;padding:2px 4px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .restab .rin.wide{width:92px}
+  .restab .rsel{font-family:inherit;font-size:7.5pt;padding:1px 2px;margin-left:2px;
+    border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .restab .rin:focus,.restab .rsel:focus{outline:2px solid var(--ribbon);outline-offset:-1px}
   .resgoal{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:7px;font-size:8.5pt}
   .resgoal label{display:flex;align-items:center;gap:4px;font-weight:600}
   .resgoal input{font-family:inherit;font-size:9pt;padding:3px 6px;border:1px solid var(--grid);
@@ -1509,6 +1515,12 @@ async function addReserve(){
   renderReserves(); refreshAll();
 }
 function delReserve(id){ reserves=reserves.filter(r=>r.id!=id); resSave(); renderReserves(); }
+/* 인라인 수정 (수량·예약가·통화·조건) */
+function _resFind(id){ return reserves.find(r=>String(r.id)===String(id)); }
+function setResQty(id,v){ const r=_resFind(id); if(r){ r.qty=Math.max(0,+v||0); resSave(); renderReserves(); } }
+function setResPrice(id,v){ const r=_resFind(id); if(r){ r.price=Math.max(0,+v||0); resSave(); renderReserves(); } }
+function setResCond(id,v){ const r=_resFind(id); if(r){ r.cond=(v==="ge"?"ge":"le"); resSave(); renderReserves(); } }
+function setResNative(id,v){ const r=_resFind(id); if(r){ r.native=v; resSave(); renderReserves(); } }
 /* 예약가를 KRW로 (비교용) */
 function resTargetKRW(r){ return toKRW(r.price, r.native, fxNow); }
 function resLiveKRW(r){ const q=quotes[r.sym]; return (q&&q.price!=null)? toKRW(q.price,q.cur,fxNow) : null; }
@@ -1589,18 +1601,20 @@ function renderReserves(){
       if(!met) distCls=Math.abs(needPct)<=2?"near":"wait";
       statusTxt=met?"체결조건 충족":(r.cond==="le"?"하락 대기":"상승 대기");
     }
-    const condTxt=r.cond==="le"?"이하 ↓":"이상 ↑";
+    const curOpts=["KRW","USD","HKD","JPY","EUR"].map(c=>`<option ${r.native===c?"selected":""}>${c}</option>`).join("");
     return `<tr class="${_resFilledFlash===r.sym?'filled':''}">
       <td>${nm} <span style="color:var(--muted);font-size:7pt">${r.sym}</span></td>
-      <td>${fmt(r.qty,r.qty%1?4:0)}</td>
-      <td>${usdWon(tgtKRW)} <span style="color:var(--muted);font-size:7pt">${condTxt}</span></td>
+      <td><input class="rin" type="number" step="any" value="${r.qty}" onchange="setResQty('${r.id}',this.value)"></td>
+      <td><input class="rin wide" type="number" step="any" value="${r.price}" onchange="setResPrice('${r.id}',this.value)"><select class="rsel" onchange="setResNative('${r.id}',this.value)">${curOpts}</select>
+        <select class="rsel" onchange="setResCond('${r.id}',this.value)"><option value="le" ${r.cond==="le"?"selected":""}>이하↓</option><option value="ge" ${r.cond==="ge"?"selected":""}>이상↑</option></select>
+        <div class="won2">${usdWon(tgtKRW)}</div></td>
       <td>${usdWon(orderKRW)}</td>
       <td>${usdWon(liveKRW)}</td>
       <td class="${distCls}">${distTxt}</td>
       <td style="color:${distCls==='near'?'var(--up)':'var(--muted)'}">${statusTxt}
         <button class="resx" onclick="delReserve('${r.id}')" title="예약 취소">✕</button></td></tr>`;
   }).join("");
-  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가</th><th>주문금액</th><th>현재가</th><th>체결까지</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
+  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가 <span style="font-weight:400;font-size:7pt">(수정가능)</span></th><th>주문금액</th><th>현재가</th><th>체결까지</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
 }
 /* 목표 매입액($) 대비 진행률 */
 let resGoalUSD=+(localStorage.getItem("pf_res_goal")||0);
