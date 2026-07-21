@@ -113,6 +113,7 @@
   .restab .near{color:var(--up);font-weight:700}
   .restab .wait{color:var(--muted)}
   .restab .won2{color:var(--muted);font-size:7pt}
+  .natpx{display:block;color:var(--muted);font-size:7pt;line-height:1.2}
   .restab .rin{width:74px;text-align:right;font-family:inherit;font-size:8.5pt;padding:2px 4px;
     border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)}
   .restab .rin.wide{width:92px}
@@ -723,6 +724,21 @@
       </div>
       <div class="resgoal" id="resGoal"></div>
       <table class="restab" id="resTab"></table>
+    </div>
+  </div>
+  <div class="respanel collapsed" id="fxPanel">
+    <div class="reshead" onclick="toggleFx()"><span id="fxArrow">▶</span> 💱 환전 관리 <span id="fxSummary" class="reshint"></span></div>
+    <div class="resbody">
+      <div class="resinput">
+        <input type="date" id="fxDate" style="width:130px" title="환전한 날짜">
+        <select id="fxCur"><option>USD</option><option>HKD</option><option>JPY</option><option>EUR</option></select>
+        <input type="number" id="fxKrw" placeholder="환전한 원화" step="any">
+        <input type="number" id="fxAmt" placeholder="받은 외화" step="any">
+        <button class="btn" onclick="addFx()">＋ 환전 기록</button>
+        <span class="reshint">환율은 자동 계산(원화÷외화) · 매수에 쓴 금액을 빼서 남은 외화를 알려줍니다</span>
+      </div>
+      <table class="restab" id="fxTab"></table>
+      <div id="fxBal"></div>
     </div>
   </div>
   <div class="sheetwrap">
@@ -1392,6 +1408,7 @@ async function refreshAll(silent){
   }finally{
     if(b && !silent){ b.textContent="🔄 새로고침"; b.disabled=false; }
     checkReserves();   // 조건 충족 예약 자동 체결
+    if(typeof renderFx==="function") renderFx();   // 환율 갱신 → 환차손익 재계산
     render();
     const sr=document.getElementById("st-rate");
     if(sr){
@@ -1644,6 +1661,125 @@ function renderResGoal(pendingKRW){
            <div class="rgbar"><span class="done" style="width:${pctBought}%"></span><span class="pend" style="width:${pctPending}%"></span></div>`
         : `<span class="rgtxt" style="color:var(--muted)">목표 금액을 넣으면 얼마나 샀는지 진행률이 표시됩니다</span>`);
 }
+
+/* 원화·달러가 아닌 현지통화(HKD/JPY/EUR 등)면 원래 가격을 작게 병기 —
+   증권사 화면(HK$84.55)과 대조할 수 있게 */
+function nativeTag(cur,px){
+  if(px==null||!cur||cur==="KRW"||cur==="USD"||cur==="USDT") return "";
+  const s={HKD:"HK$",JPY:"¥",EUR:"€",GBP:"£",CNY:"CN¥",TWD:"NT$"}[cur]||(cur+" ");
+  return `<span class="natpx">${s}${fmt(px, px<10?3:2)}</span>`;
+}
+
+/* ============ 환전 관리 (환차손익 · 남은 외화) ============ */
+const FXLS="pf_fxlog_v1";
+let fxLog=JSON.parse(localStorage.getItem(FXLS)||"[]");
+const CUR_SYM={USD:"$",HKD:"HK$",JPY:"¥",EUR:"€"};
+function fxSave(){ localStorage.setItem(FXLS,JSON.stringify(fxLog)); }
+function curRate(cur){ return fxNow[cur+"KRW"]||null; }   // 1외화 = ?원
+function toggleFx(){
+  const p=document.getElementById("fxPanel");
+  const on=p.classList.toggle("collapsed");
+  document.getElementById("fxArrow").textContent=on?"▶":"▼";
+  try{ localStorage.setItem("pf_fx_collapsed",on?"1":""); }catch(e){}
+}
+function addFx(){
+  const date=document.getElementById("fxDate").value||new Date().toISOString().slice(0,10);
+  const cur=document.getElementById("fxCur").value;
+  const krw=+document.getElementById("fxKrw").value||0;
+  const amt=+document.getElementById("fxAmt").value||0;
+  if(krw<=0||amt<=0){ alert("환전한 원화와 받은 외화를 모두 입력하세요."); return; }
+  fxLog.push({id:Date.now()+Math.random(), date, cur, krw, amt});
+  fxLog.sort((a,b)=>a.date.localeCompare(b.date));
+  fxSave();
+  document.getElementById("fxKrw").value=document.getElementById("fxAmt").value="";
+  renderFx();
+}
+function delFx(id){ fxLog=fxLog.filter(f=>f.id!=id); fxSave(); renderFx(); }
+function _fxFind(id){ return fxLog.find(f=>String(f.id)===String(id)); }
+function setFxKrw(id,v){ const f=_fxFind(id); if(f){ f.krw=Math.max(0,+v||0); fxSave(); renderFx(); } }
+function setFxAmt(id,v){ const f=_fxFind(id); if(f){ f.amt=Math.max(0,+v||0); fxSave(); renderFx(); } }
+function setFxDate(id,v){ const f=_fxFind(id); if(f){ f.date=v; fxSave(); renderFx(); } }
+function setFxCur(id,v){ const f=_fxFind(id); if(f){ f.cur=v; fxSave(); renderFx(); } }
+/* 통화별로 매수에 쓴 외화 (해당 통화가 native인 lot들의 매수대금 합) */
+function spentByCur(cur){
+  let s=0;
+  for(const l of lots){ if(l.native===cur) s+=(+l.price||0)*(+l.qty||0); }
+  return s;
+}
+function renderFx(){
+  const tb=document.getElementById("fxTab"); if(!tb) return;
+  const curs=[...new Set(fxLog.map(f=>f.cur))];
+  // 요약(헤더)
+  const sumEl=document.getElementById("fxSummary");
+  if(sumEl){
+    if(!fxLog.length) sumEl.textContent="— 환전한 내역을 넣으면 환차손익과 남은 외화를 계산합니다";
+    else{
+      const parts=curs.map(c=>{
+        const tot=fxLog.filter(f=>f.cur===c).reduce((a,b)=>a+b.amt,0);
+        const left=tot-spentByCur(c);
+        return `${CUR_SYM[c]||c}${fmt(left, c==="JPY"?0:2)} 남음`;
+      });
+      sumEl.textContent="· "+parts.join(" · ");
+    }
+  }
+  if(!fxLog.length){
+    tb.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:10px">환전 기록 없음. 날짜·통화·환전한 원화·받은 외화를 넣으면 환율과 환차손익이 자동 계산됩니다.</td></tr>`;
+    document.getElementById("fxBal").innerHTML=""; return;
+  }
+  const rows=fxLog.map(f=>{
+    const rate=f.amt>0? f.krw/f.amt : 0;      // 환전 당시 환율
+    const now=curRate(f.cur);
+    const diffPct=(now&&rate)? (now/rate-1)*100 : null;
+    const gain=(now&&rate)? f.amt*(now-rate) : null;   // 그 환전분을 계속 들고 있다면
+    const dp=f.cur==="JPY"?2:2;
+    return `<tr>
+      <td><input class="rin wide" type="date" value="${f.date}" onchange="setFxDate('${f.id}',this.value)" style="width:118px"></td>
+      <td><select class="rsel" onchange="setFxCur('${f.id}',this.value)">${["USD","HKD","JPY","EUR"].map(c=>`<option ${f.cur===c?"selected":""}>${c}</option>`).join("")}</select></td>
+      <td><input class="rin wide" type="number" step="any" value="${f.krw}" onchange="setFxKrw('${f.id}',this.value)"></td>
+      <td><input class="rin" type="number" step="any" value="${f.amt}" onchange="setFxAmt('${f.id}',this.value)"></td>
+      <td><b>₩${fmt(rate,dp)}</b></td>
+      <td>${now?"₩"+fmt(now,dp):"—"}</td>
+      <td class="${diffPct==null?"":(diffPct>=0?"near":"wait")}">${diffPct==null?"—":(diffPct>=0?"+":"")+fmt(diffPct,2)+"%"}</td>
+      <td style="color:${gain>=0?'var(--up)':'var(--down)'}">${gain==null?"—":(gain>=0?"+":"")+"₩"+fmt(gain,0)}
+        <button class="resx" onclick="delFx('${f.id}')" title="삭제">✕</button></td></tr>`;
+  }).join("");
+  tb.innerHTML=`<thead><tr><th>환전일</th><th>통화</th><th>환전한 원화</th><th>받은 외화</th><th>환전 환율</th><th>현재 환율</th><th>변동</th><th>환차손익(전액 보유 시)</th></tr></thead><tbody>${rows}</tbody>`;
+  // 통화별 잔액/환차손익
+  const bal=curs.map(c=>{
+    const recs=fxLog.filter(f=>f.cur===c);
+    const totAmt=recs.reduce((a,b)=>a+b.amt,0);
+    const totKrw=recs.reduce((a,b)=>a+b.krw,0);
+    const avg=totAmt>0? totKrw/totAmt : 0;
+    const spent=spentByCur(c);
+    const left=totAmt-spent;
+    const now=curRate(c);
+    const leftKrwNow=now? left*now : null;
+    const leftKrwCost=left*avg;
+    const gain=(leftKrwNow!=null)? leftKrwNow-leftKrwCost : null;
+    const s=CUR_SYM[c]||c;
+    const dp=c==="JPY"?0:2;
+    return `<tr>
+      <td><b>${c}</b></td>
+      <td>${s}${fmt(totAmt,dp)}</td>
+      <td>₩${fmt(avg,2)}</td>
+      <td>${s}${fmt(spent,dp)}</td>
+      <td class="${left<0?'wait':''}"><b style="color:${left<0?'var(--up)':'var(--ribbon)'}">${s}${fmt(left,dp)}</b></td>
+      <td>${now?"₩"+fmt(now,2):"—"}</td>
+      <td>${leftKrwNow!=null?"₩"+fmt(leftKrwNow,0):"—"}</td>
+      <td style="color:${gain>=0?'var(--up)':'var(--down)'}"><b>${gain==null?"—":(gain>=0?"+":"")+"₩"+fmt(gain,0)}</b>
+        ${avg>0&&now?` <span style="color:var(--muted);font-size:7pt">(${now>=avg?"+":""}${fmt((now/avg-1)*100,2)}%)</span>`:""}</td></tr>`;
+  }).join("");
+  document.getElementById("fxBal").innerHTML=
+    `<div style="font-size:9pt;font-weight:600;margin:8px 0 4px">💰 통화별 잔액 · 환차손익</div>
+     <table class="restab">
+      <thead><tr><th>통화</th><th>총 환전</th><th>평균 환율</th><th>매수 사용</th><th>남은 외화</th><th>현재 환율</th><th>잔액 원화가치</th><th>환차손익(잔액 기준)</th></tr></thead>
+      <tbody>${bal}</tbody></table>
+     <div style="font-size:7.5pt;color:var(--muted);margin-top:5px">
+       매수 사용 = 해당 통화로 산 종목의 매수대금 합(포트폴리오 기준) · 남은 외화가 음수면 기록되지 않은 환전이 있다는 뜻 ·
+       환차손익은 <b>남은 외화</b>에 대한 것(이미 주식을 산 부분의 환차는 종목 수익률에 이미 반영됨)
+     </div>`;
+}
+
 function loadSample(){
   lots=[
    {id:1,sym:"005930.KS",qty:10,price:71000,native:"KRW",date:"2024-01-05",bfx:{USDKRW:1310,JPYKRW:9.0,EURKRW:1440,BTCUSD:44000}},
@@ -1734,10 +1870,10 @@ function render(){
         <td class="rownum">${rn++}</td>
         <td><b>${lab}</b> &nbsp;<span style="color:var(--muted)">${l.date||"-"}${l.time?' '+l.time:''}${l.usdManual?' ✎$':''}</span></td>
         <td class="num">${fmt(l.qty,l.qty%1?4:0)}</td>
-        <td class="num">${money(buyKRW,'KRW',fx)}</td>
+        <td class="num">${money(buyKRW,'KRW',fx)}${nativeTag(l.native,l.price)}</td>
         <td class="num">${buyUSD!=null?'$'+fmt(buyUSD,2):'-'}</td>
         <td class="num">${buySat!=null?fmt(buySat,0)+' sat':'-'}</td>
-        <td class="num">${money(nowKRW,'KRW',fx)}</td>
+        <td class="num">${money(nowKRW,'KRW',fx)}${nativeTag(q.cur,q.price)}</td>
         <td class="num">${nowUSD!=null?'$'+fmt(nowUSD,2):'-'}</td>
         ${pctCell(rK)}${pctCell(rU)}${pctCell(rS)}
         <td class="num">${money(costKRW,base,fx)}</td>
@@ -3732,6 +3868,7 @@ render();
 refreshAll();
 renderMemo();
 renderReserves();
+renderFx();
 homeRefresh();
 calcFut();
 // 예약매수 패널 접힘 상태 복원
@@ -3739,6 +3876,14 @@ try{ if(localStorage.getItem("pf_res_collapsed")){
   document.getElementById("resPanel").classList.add("collapsed");
   document.getElementById("resArrow").textContent="▶";
 } }catch(e){}
+// 환전 패널 접힘 상태 복원 (기본 접힘)
+try{ if(!localStorage.getItem("pf_fx_collapsed")){ /* 기본 접힘 유지 */ }
+  else if(localStorage.getItem("pf_fx_collapsed")===""){
+    document.getElementById("fxPanel").classList.remove("collapsed");
+    document.getElementById("fxArrow").textContent="▼";
+  } }catch(e){}
+// 오늘 날짜 기본값
+try{ const fd=document.getElementById("fxDate"); if(fd&&!fd.value) fd.value=new Date().toISOString().slice(0,10); }catch(e){}
 // 청산 방어 패널 접힘 상태 복원
 try{ if(localStorage.getItem("pf_def_collapsed")){
   document.getElementById("futdef").classList.add("collapsed");
