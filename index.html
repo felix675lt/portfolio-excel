@@ -112,7 +112,17 @@
   .restab td:nth-child(7){text-align:center}
   .restab .near{color:var(--up);font-weight:700}
   .restab .wait{color:var(--muted)}
-  .restab .usd{color:var(--muted);font-size:7pt}
+  .restab .won2{color:var(--muted);font-size:7pt}
+  .resgoal{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:7px;font-size:8.5pt}
+  .resgoal label{display:flex;align-items:center;gap:4px;font-weight:600}
+  .resgoal input{font-family:inherit;font-size:9pt;padding:3px 6px;border:1px solid var(--grid);
+    border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .resgoal .rgtxt b{font-variant-numeric:tabular-nums}
+  .resgoal .rgb{color:var(--up)}
+  .resgoal .rgbar{flex:1;min-width:160px;height:14px;border:1px solid var(--grid);border-radius:7px;
+    overflow:hidden;background:var(--band);display:flex}
+  .resgoal .rgbar .done{background:linear-gradient(90deg,#1f8f4e,#0f7a3a);height:100%}
+  .resgoal .rgbar .pend{background:repeating-linear-gradient(45deg,#c7900055,#c7900055 5px,#c7900022 5px,#c7900022 10px);height:100%}
   .restab .resx{background:transparent;border:0;color:var(--muted);cursor:pointer;margin-left:6px}
   .restab .resx:hover{color:var(--up)}
   @keyframes resflash{0%{background:#fff3b0}100%{background:transparent}}
@@ -677,6 +687,7 @@
         <select id="resCond" title="예약가에 도달하는 방향"><option value="le">이하로 내려오면 ↓</option><option value="ge">이상으로 오르면 ↑</option></select>
         <button class="btn" onclick="addReserve()">＋ 예약 걸기</button>
       </div>
+      <div class="resgoal" id="resGoal"></div>
       <table class="restab" id="resTab"></table>
     </div>
   </div>
@@ -1458,19 +1469,32 @@ function checkReserves(){
   if(filled) renderReserves();
   else renderReserves();
 }
-/* 원화+달러 병기 */
-function wonUsd(vKRW){
+/* 달러 메인 + 원화 보조 */
+function usdWon(vKRW){
   if(vKRW==null) return "—";
-  return `${money(vKRW,'KRW',fxNow)} <span class="usd">${money(vKRW,'USD',fxNow)}</span>`;
+  return `<b>${money(vKRW,'USD',fxNow)}</b> <span class="won2">${money(vKRW,'KRW',fxNow)}</span>`;
 }
+/* 포트폴리오 실제 매입 총액(KRW) — lots 합산 */
+function portfolioCostKRW(){
+  let s=0;
+  for(const l of lots){
+    const bfx=l.bfx||fxNow;
+    const buyKRW=toKRW(l.price,l.native,bfx);
+    if(buyKRW!=null) s+=buyKRW*l.qty;
+  }
+  return s;
+}
+const usd = vKRW => (vKRW!=null&&fxNow.USDKRW>0)? vKRW/fxNow.USDKRW : null;
 function renderReserves(){
   const panel=document.getElementById("resPanel"); if(!panel) return;
   const tb=document.getElementById("resTab");
-  // 총 주문금액 (예약가×수량 합)
-  let totKRW=0, cnt=0;
-  reserves.forEach(r=>{ const t=resTargetKRW(r); if(t!=null){ totKRW+=t*r.qty; cnt++; } });
+  // 총 예약 주문금액 (예약가×수량 합)
+  let totKRW=0;
+  reserves.forEach(r=>{ const t=resTargetKRW(r); if(t!=null) totKRW+=t*r.qty; });
   document.getElementById("resCount").innerHTML =
-    `(${reserves.length})` + (reserves.length? ` · 총 주문금액 <b>${wonUsd(totKRW)}</b>` : "");
+    `(${reserves.length})` + (reserves.length? ` · 총 예약금액 <b>${usdWon(totKRW)}</b>` : "");
+  // ── 목표 매입액 진행률 ──
+  renderResGoal(totKRW);
   if(!reserves.length){
     tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:10px">예약 없음. 위에서 종목·수량·예약가를 넣고 <b>＋ 예약 걸기</b>. 목표가 도달 시 자동 체결됩니다.</td></tr>`;
     return;
@@ -1481,24 +1505,47 @@ function renderReserves(){
     const nm=(typeof symName==="function"?symName(r.sym):r.sym);
     let distTxt="—", distCls="wait", statusTxt="시세 대기";
     if(liveKRW!=null&&tgtKRW!=null){
-      const distPct=(liveKRW/tgtKRW-1)*100;
+      // 현재가 기준으로 예약가까지 필요한 변동률 (음수=하락해야, 양수=상승해야)
+      const needPct=(tgtKRW/liveKRW-1)*100;
       const met=r.cond==="le"? liveKRW<=tgtKRW : liveKRW>=tgtKRW;
-      distTxt=(distPct>=0?"+":"")+fmt(distPct,2)+"%";
-      distCls=Math.abs(distPct)<=2?"near":"wait";
+      if(met){ distTxt=`✓ 도달`; distCls="near"; }
+      else if(needPct<0) distTxt=`▼ ${fmt(Math.abs(needPct),2)}% 하락`;
+      else distTxt=`▲ ${fmt(needPct,2)}% 상승`;
+      if(!met) distCls=Math.abs(needPct)<=2?"near":"wait";
       statusTxt=met?"체결조건 충족":(r.cond==="le"?"하락 대기":"상승 대기");
     }
     const condTxt=r.cond==="le"?"이하 ↓":"이상 ↑";
     return `<tr class="${_resFilledFlash===r.sym?'filled':''}">
       <td>${nm} <span style="color:var(--muted);font-size:7pt">${r.sym}</span></td>
       <td>${fmt(r.qty,r.qty%1?4:0)}</td>
-      <td>${wonUsd(tgtKRW)} <span style="color:var(--muted);font-size:7pt">${condTxt}</span></td>
-      <td>${wonUsd(orderKRW)}</td>
-      <td>${wonUsd(liveKRW)}</td>
+      <td>${usdWon(tgtKRW)} <span style="color:var(--muted);font-size:7pt">${condTxt}</span></td>
+      <td>${usdWon(orderKRW)}</td>
+      <td>${usdWon(liveKRW)}</td>
       <td class="${distCls}">${distTxt}</td>
       <td style="color:${distCls==='near'?'var(--up)':'var(--muted)'}">${statusTxt}
         <button class="resx" onclick="delReserve('${r.id}')" title="예약 취소">✕</button></td></tr>`;
   }).join("");
-  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가</th><th>주문금액</th><th>현재가</th><th>거리</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
+  tb.innerHTML=`<thead><tr><th>종목</th><th>수량</th><th>예약가</th><th>주문금액</th><th>현재가</th><th>체결까지</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
+}
+/* 목표 매입액($) 대비 진행률 */
+let resGoalUSD=+(localStorage.getItem("pf_res_goal")||0);
+function setResGoal(v){ resGoalUSD=Math.max(0,+v||0); try{localStorage.setItem("pf_res_goal",String(resGoalUSD));}catch(e){} renderResGoal(); }
+function renderResGoal(pendingKRW){
+  const el=document.getElementById("resGoal"); if(!el) return;
+  if(pendingKRW==null){ let t=0; reserves.forEach(r=>{const x=resTargetKRW(r); if(x!=null)t+=x*r.qty;}); pendingKRW=t; }
+  const boughtUSD=usd(portfolioCostKRW())||0;   // 실제 매입 완료(포트폴리오)
+  const pendingUSD=usd(pendingKRW)||0;          // 예약 대기
+  const goal=resGoalUSD;
+  const pctBought=goal>0? Math.min(100,boughtUSD/goal*100):0;
+  const pctPending=goal>0? Math.min(100-pctBought,pendingUSD/goal*100):0;
+  const remain=Math.max(0,goal-boughtUSD);
+  el.innerHTML=
+    `<label>🎯 목표 매입액 $<input type="number" id="resGoalInput" value="${goal||""}" placeholder="예: 20000" step="any"
+        oninput="setResGoal(this.value)" style="width:100px"></label>`
+    + (goal>0
+        ? `<span class="rgtxt">매입완료 <b class="rgb">$${fmt(boughtUSD,0)}</b> (${fmt(pctBought,1)}%) · 예약대기 <b>$${fmt(pendingUSD,0)}</b> · 남은목표 <b>$${fmt(remain,0)}</b></span>
+           <div class="rgbar"><span class="done" style="width:${pctBought}%"></span><span class="pend" style="width:${pctPending}%"></span></div>`
+        : `<span class="rgtxt" style="color:var(--muted)">목표 금액을 넣으면 얼마나 샀는지 진행률이 표시됩니다</span>`);
 }
 function loadSample(){
   lots=[
@@ -1629,6 +1676,7 @@ function render(){
   }
   statTotals(totCostKRW,totValKRW,base,fx);
   fillGrid(tb, COLS.length, document.querySelector(".sheetwrap"));
+  if(typeof renderResGoal==="function") renderResGoal();  // 매입 진행률 갱신
 }
 function statTotals(cost,val,base,fx){
   document.getElementById("st-count").textContent =
