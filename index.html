@@ -1175,6 +1175,27 @@ const ALIAS = [
   ["NFLX","넷플릭스","netflix"],["PLTR","팔란티어","palantir"],
   ["AMD","에이엠디","amd"],["INTC","인텔","intel"],["AVGO","브로드컴","broadcom"],
   ["TSM","TSMC","티에스엠씨"],["COIN","코인베이스","coinbase"],["MSTR","마이크로스트레티지","strategy"],
+  // 홍콩(HKSE) — 야후는 4자리 코드.HK 형식
+  ["9880.HK","유비테크","ubtech","유비테크로보틱스","UBTech Robotics"],
+  ["0700.HK","텐센트","tencent","텐센트홀딩스"],
+  ["9988.HK","알리바바","alibaba","알리바바홍콩"],
+  ["1810.HK","샤오미","xiaomi"],
+  ["1211.HK","BYD","비야디","비야디홍콩"],
+  ["3690.HK","메이투안","meituan"],
+  ["9618.HK","징둥","jd","제이디닷컴"],
+  ["2015.HK","리오토","리 오토","liauto"],
+  ["9868.HK","샤오펑","xpeng"],
+  ["9866.HK","니오","nio홍콩"],
+  ["0941.HK","차이나모바일","china mobile"],
+  ["0388.HK","홍콩거래소","hkex"],
+  ["1299.HK","AIA","에이아이에이"],
+  ["0005.HK","HSBC","에이치에스비씨"],
+  ["3888.HK","킹소프트","kingsoft"],
+  ["1024.HK","콰이쇼우","kuaishou"],
+  ["2333.HK","창청자동차","great wall"],
+  ["0175.HK","길리","지리자동차","geely"],
+  ["6690.HK","하이얼","haier"],
+  ["2359.HK","우시앱텍","wuxi"],
   // 가상자산 (스팟 — 야후 기준)
   ["BTC-USD","비트코인","bitcoin","btc","비트"],["ETH-USD","이더리움","ethereum","eth","이더"],
   ["XRP-USD","리플","xrp","ripple"],["SOL-USD","솔라나","solana","sol"],
@@ -1328,6 +1349,14 @@ async function fetchRates(){
   await Promise.all(Object.entries(map).map(async([k,s])=>{
     try{ fxNow[k]=(await yQuote(s)).price; }catch(e){}
   }));
+  // 홍콩달러(HKD/KRW): KRWHKD=X 역수 → 실패 시 USD/HKD로 환산
+  try{
+    const k=(await yQuote("KRWHKD=X")).price;
+    if(k>0) fxNow.HKDKRW=1/k;
+  }catch(e){
+    try{ const uh=(await yQuote("HKD=X")).price;
+      if(uh>0&&fxNow.USDKRW) fxNow.HKDKRW=fxNow.USDKRW/uh; }catch(e2){}
+  }
   const st=document.getElementById("st-rate");
   if(fxNow.USDKRW) st.textContent =
     `USD/KRW ${fmt(fxNow.USDKRW,2)} · JPY/KRW ${fmt(fxNow.JPYKRW,2)} · BTC $${fmt(fxNow.BTCUSD,0)}`;
@@ -1367,9 +1396,10 @@ async function refreshAll(silent){
 function toKRW(v,cur,fx){
   if(v==null) return null;
   if(cur==="KRW") return v;
-  if(cur==="USD") return fx.USDKRW? v*fx.USDKRW : null;
+  if(cur==="USD"||cur==="USDT") return fx.USDKRW? v*fx.USDKRW : null;
   if(cur==="EUR") return fx.EURKRW? v*fx.EURKRW : null;
   if(cur==="JPY") return fx.JPYKRW? v*fx.JPYKRW : null;
+  if(cur==="HKD") return fx.HKDKRW? v*fx.HKDKRW : (fx.USDKRW? v*fx.USDKRW/7.8 : null); // 홍콩달러
   return fx.USDKRW? v*fx.USDKRW : null; // 기타는 USD 취급
 }
 function krwTo(vKRW,target,fx){
@@ -3124,13 +3154,23 @@ function setMyDivAmt(sym,v){ const h=myDiv.holdings.find(x=>x.sym===sym); if(h){
 async function loadMyDivData(){
   await Promise.all(myDiv.holdings.map(async h=>{
     const c=divCache[h.sym];
-    if(c&&!c.fail) return;
+    if(c&&!c.fail&&c.payments) return;
     try{ const d=await yDividends(h.sym);
       divCache[h.sym]={price:d.price, annual:d.annual, yld:d.price?d.annual/d.price*100:0,
-                       freq:d.freq, cur:d.cur, name:d.name};
+                       freq:d.freq, payments:d.payments||12, cur:d.cur, name:d.name};
     }catch(e){ divCache[h.sym]={fail:true}; }
   }));
 }
+/* 적립 배분 비중 (미설정 시 균등) */
+function mdWeights(){
+  const n=myDiv.holdings.length||1;
+  let ws=myDiv.holdings.map(h=> (h.w!=null&&h.w!=="")? +h.w : null);
+  if(!ws.some(x=>x!=null&&x>0)) return myDiv.holdings.map(()=>1/n);
+  ws=ws.map(x=>(x==null||x<0)?0:x);
+  const s=ws.reduce((a,b)=>a+b,0);
+  return s>0? ws.map(x=>x/s) : myDiv.holdings.map(()=>1/n);
+}
+function setMyDivW(sym,v){ const h=myDiv.holdings.find(x=>x.sym===sym); if(h){ h.w=(v===""?null:+v); mdSave(); renderMyDivOut(); } }
 function renderMyDivOut(){
   const out=document.getElementById("mdOut"); if(!out) return;
   const dEl=document.getElementById("mdDca"), fEl=document.getElementById("mdFreq");
@@ -3144,58 +3184,84 @@ function renderMyDivOut(){
     return;
   }
   const usdkrw=fxNow.USDKRW||1450;
+  const years=Math.max(1,Math.min(40,+((document.getElementById("mdYears")||{}).value)||10));
+  const months=years*12;
+  const w=mdWeights();              // 적립 배분 비중
+  const payLabel={12:"월",4:"분기",2:"반기",1:"연"};
   let totAmt=0, totAnn=0;
-  const rows=myDiv.holdings.map(h=>{
+  const rows=myDiv.holdings.map((h,i)=>{
     const c=divCache[h.sym]||{}, amt=+h.amt||0;
     const yld=c.fail?0:(c.yld||0), ann=amt*yld/100;
     totAmt+=amt; totAnn+=ann;
     const shares=(c.price>0)? amt/c.price : null;
+    const pay=c.payments||12;
+    const dcaEach=mDca*w[i];        // 이 종목에 매월 들어가는 적립액
     return `<tr>
-      <td>${h.sym} <span style="color:var(--muted);font-weight:400;font-size:7.5pt">${c.name?String(c.name).slice(0,20):""}</span></td>
+      <td>${h.sym} <span style="color:var(--muted);font-weight:400;font-size:7.5pt">${c.name?String(c.name).slice(0,18):""}</span></td>
       <td><input type="number" value="${amt}" step="any" onchange="setMyDivAmt('${h.sym}',this.value)"
-           style="width:92px;text-align:right;font-family:inherit;font-size:8.5pt;padding:2px 4px;border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)"></td>
+           style="width:82px;text-align:right;font-family:inherit;font-size:8.5pt;padding:2px 4px;border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)"></td>
+      <td><input type="number" value="${h.w!=null?h.w:fmt(w[i]*100,0)}" step="any" onchange="setMyDivW('${h.sym}',this.value)"
+           style="width:52px;text-align:right;font-family:inherit;font-size:8.5pt;padding:2px 4px;border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)">%</td>
+      <td>$${fmt(dcaEach,0)}</td>
       <td>${c.fail?"—":"$"+fmt(c.price,2)}</td>
-      <td>${shares!=null?fmt(shares,shares<10?2:0):"—"}</td>
-      <td>${c.fail?"—":(c.freq||"—")}</td>
+      <td>${c.fail?"—":(payLabel[pay]||c.freq||"—")+`<span style="color:var(--muted);font-size:7pt"> 연${pay}회</span>`}</td>
       <td>${c.fail?"—":fmt(yld,2)+"%"}</td>
+      <td>${shares!=null&&shares>0?fmt(shares,shares<10?2:0):"—"}</td>
       <td>$${fmt(ann/12,2)}</td>
-      <td>$${fmt(ann,0)}</td>
       <td style="text-align:center"><button class="mdx" onclick="delMyDiv('${h.sym}')">✕</button></td></tr>`;
   }).join("");
   const avgYld=totAmt>0? totAnn/totAmt*100 : 0;
-  // ── 풍차돌리기(합산): 배당 재투자 + 적립 계속 ──
-  const years=Math.max(1,Math.min(40,+((document.getElementById("mdYears")||{}).value)||10));
-  const months=years*12;
-  const st=myDiv.holdings.map(h=>{ const c=divCache[h.sym]||{};
-    return {v:+h.amt||0, r:(c.fail?0:(c.yld||0))/100/12}; });
+  // ── 시뮬: 배당 재투자 + 적립 계속 (종목별) ──
+  const st=myDiv.holdings.map((h,idx)=>{ const c=divCache[h.sym]||{};
+    return {sym:h.sym, v:+h.amt||0, r:(c.fail?0:(c.yld||0))/100/12,
+            pay:c.payments||12, name:c.name, i:idx}; });
   const initTot=st.reduce((s,x)=>s+x.v,0);
-  const w=st.map(s=> initTot>0? s.v/initTot : 1/st.length);   // 적립 배분 = 초기 비중
   const marks=[1,3,5,10].filter(y=>y<=years); if(!marks.includes(years)) marks.push(years);
   const snap={};
   for(let m=1;m<=months;m++){
     st.forEach((s,i)=>{ s.v = s.v*(1+s.r) + mDca*w[i]; });
     const y=m/12;
     if(Number.isInteger(y)&&marks.includes(y)){
-      const val=st.reduce((a,b)=>a+b.v,0);
-      const mdiv=st.reduce((a,b)=>a+b.v*b.r,0);
-      snap[y]={val, mdiv, invested:initTot+mDca*m};
+      snap[y]={ val:st.reduce((a,b)=>a+b.v,0), mdiv:st.reduce((a,b)=>a+b.v*b.r,0),
+                invested:initTot+mDca*m, each:st.map(s=>({sym:s.sym,v:s.v,r:s.r,pay:s.pay})) };
     }
   }
   const card=(l,v,cls)=>`<div class="ocard ${cls||''}"><div class="ol">${l}</div><div class="ov">${v}</div></div>`;
+  // 종목별 N년 후 배당 (주기별 실제 지급액)
+  const endSnap=snap[years]||snap[marks[marks.length-1]];
+  const perStock=(endSnap?endSnap.each:[]).map(s=>{
+    const annD=s.v*s.r*12, perPay=annD/s.pay;
+    const nm=(divCache[s.sym]||{}).name||"";
+    const investedEach=(myDiv.holdings.find(h=>h.sym===s.sym)?.amt||0)+mDca*w[st.findIndex(x=>x.sym===s.sym)]*months;
+    return `<tr><td>${s.sym} <span style="color:var(--muted);font-weight:400;font-size:7pt">${String(nm).slice(0,16)}</span></td>
+      <td>${payLabel[s.pay]||"—"} (연${s.pay}회)</td>
+      <td>$${fmt(investedEach,0)}</td>
+      <td>$${fmt(s.v,0)}</td>
+      <td class="big">$${fmt(perPay,0)}</td>
+      <td>$${fmt(annD/12,0)}</td>
+      <td>$${fmt(annD,0)}</td>
+      <td>₩${fmt(annD/12*usdkrw,0)}</td></tr>`;
+  }).join("");
   out.innerHTML=
     `<table class="mdtab">
-      <thead><tr><th>종목</th><th>보유금액$</th><th>현재가</th><th>주식수</th><th>주기</th><th>수익률</th><th>월배당</th><th>연배당</th><th></th></tr></thead>
+      <thead><tr><th>종목</th><th>보유금액$</th><th>적립비중</th><th>월 적립액</th><th>현재가</th><th>배당주기</th><th>수익률</th><th>주식수</th><th>현재 월배당</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td>합계 ${myDiv.holdings.length}종목</td><td>$${fmt(totAmt,0)}</td><td>-</td><td>-</td><td>-</td>
-        <td>${fmt(avgYld,2)}%</td><td>$${fmt(totAnn/12,2)}</td><td>$${fmt(totAnn,0)}</td><td></td></tr></tfoot>
+      <tfoot><tr><td>합계 ${myDiv.holdings.length}종목</td><td>$${fmt(totAmt,0)}</td><td>100%</td><td>$${fmt(mDca,0)}</td><td>-</td><td>-</td>
+        <td>${fmt(avgYld,2)}%</td><td>-</td><td>$${fmt(totAnn/12,2)}</td><td></td></tr></tfoot>
     </table>`
     +`<div class="mdsum">`
-      +card("합산 월 배당",`<span style="color:var(--up)">$${fmt(totAnn/12,0)}</span>`)
+      +card("현재 월 배당",`<span style="color:var(--up)">$${fmt(totAnn/12,0)}</span>`)
       +card("원화 환산",`₩${fmt(totAnn/12*usdkrw,0)}`)
-      +card("합산 연 배당",`$${fmt(totAnn,0)}`)
+      +card("현재 연 배당",`$${fmt(totAnn,0)}`)
       +card("평균 수익률",`${fmt(avgYld,2)}%`)
       +card("적립(월 환산)",`$${fmt(mDca,0)}`)
     +`</div>`
+    +`<div style="font-size:9pt;font-weight:600;margin:10px 0 4px">📅 ${years}년 꾸준히 적립했을 때 — 종목별 배당</div>`
+    +`<table class="mdproj">
+      <thead><tr><th>종목</th><th>배당주기</th><th>누적 투입</th><th>평가금액</th><th>회당 지급</th><th>월평균</th><th>연 배당</th><th>원화 월평균</th></tr></thead>
+      <tbody>${perStock||`<tr><td colspan="8" style="text-align:center;color:var(--muted)">종목을 추가하세요</td></tr>`}</tbody>
+    </table>`
+    +`<div style="font-size:9pt;font-weight:600;margin:10px 0 4px">🌪️ 합산 풍차돌리기</div>`
     +`<table class="mdproj">
       <thead><tr><th>기간</th><th>누적 투입</th><th>총 자산</th><th>월 배당</th><th>연 배당</th><th>원화 월배당</th></tr></thead>
       <tbody>${marks.map(y=>{ const s=snap[y]; if(!s) return "";
