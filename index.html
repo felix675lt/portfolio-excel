@@ -335,6 +335,34 @@
   .dvtable td:first-child{background:var(--band);font-weight:600}
   .divguide{border:1px solid var(--grid);border-radius:6px;padding:7px 9px;margin-bottom:10px}
   .divguide.collapsed .fgbody{display:none}
+  /* 내 배당 포트폴리오(합산) */
+  .mydiv{border:2px solid var(--ribbon);border-radius:6px;padding:10px 12px;margin:8px 0 12px;
+    background:var(--cell-bg)}
+  .mydiv h3{font-size:10pt;margin-bottom:7px}
+  .mdhint{font-weight:400;font-size:8pt;color:var(--muted)}
+  .mdadd{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .mdadd input,.mdadd select{font-family:inherit;font-size:9pt;padding:3px 6px;border:1px solid var(--grid);
+    border-radius:3px;background:var(--cell-bg);color:var(--fg)}
+  .mdadd input#mdSym{width:180px}.mdadd input#mdAmt{width:110px}
+  .mdadd input#mdDca{width:80px}.mdadd input#mdYears{width:56px}
+  .mdadd label{display:flex;align-items:center;gap:3px;font-size:8.5pt}
+  .mdsep{color:var(--grid)}
+  .mdtab{border-collapse:collapse;width:100%;font-size:8.5pt;font-variant-numeric:tabular-nums;margin-bottom:8px}
+  .mdtab th,.mdtab td{border:1px solid var(--grid);padding:4px 8px;text-align:right;white-space:nowrap}
+  .mdtab th{background:var(--ribbon);color:#fff;text-align:center;font-size:8pt}
+  .mdtab td:first-child{text-align:left;font-weight:600}
+  .mdtab tr:nth-child(even) td{background:var(--band)}
+  .mdtab tfoot td{background:#fff4d6;font-weight:700}
+  body.dark .mdtab tfoot td{background:#3a3320}
+  .mdtab .mdx{background:transparent;border:0;color:var(--muted);cursor:pointer}
+  .mdtab .mdx:hover{color:var(--up)}
+  .mdsum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .mdsum .ocard{min-width:120px}
+  .mdproj{border-collapse:collapse;width:100%;font-size:8.5pt;font-variant-numeric:tabular-nums}
+  .mdproj th,.mdproj td{border:1px solid var(--grid);padding:4px 8px;text-align:right}
+  .mdproj th{background:var(--band);color:var(--fg);text-align:center;font-size:8pt}
+  .mdproj td:first-child{text-align:left;font-weight:600}
+  .mdproj .big{color:var(--up);font-weight:700}
   .dvsimbox{background:var(--cell-bg);border:2px solid var(--ribbon);border-radius:6px;
     padding:11px 14px;margin:10px 0;line-height:1.75;font-size:9.5pt}
   .dvsimbox h3{font-size:10pt;margin-bottom:6px;color:var(--ribbon)}
@@ -846,6 +874,23 @@
     </div>
     <div class="sheetwrap divwrap">
       <div class="dbody" id="dbody">
+        <div class="mydiv">
+          <h3>💼 내 배당 포트폴리오 (합산)
+            <span class="mdhint">— 여러 종목을 합쳐서 월 배당·풍차돌리기를 한 번에 계산</span></h3>
+          <div class="mdadd">
+            <input type="text" id="mdSym" placeholder="종목 (QQQI, JEPQ, SCHD…)" autocomplete="off">
+            <input type="number" id="mdAmt" placeholder="보유금액 $" step="any">
+            <button class="btn" onclick="addMyDiv()">＋ 종목 추가</button>
+            <span class="mdsep">|</span>
+            <label>적립 $<input type="number" id="mdDca" step="any" oninput="saveMyDivDca()"></label>
+            <select id="mdFreq" onchange="saveMyDivDca()">
+              <option value="day">매일</option><option value="week">매주</option><option value="month">매월</option>
+            </select>
+            <span class="mdhint" id="mdDcaMonthly"></span>
+            <label>기간 <input type="number" id="mdYears" value="10" min="1" max="40" oninput="renderMyDivOut()"><span class="mdhint">년</span></label>
+          </div>
+          <div id="mdOut"></div>
+        </div>
         <div class="trumpnews" id="trumpNews"></div>
         <div class="divguide" id="divguide">
           <div class="fgtoggle" onclick="toggleDivGuide()"><span id="dgArrow">▼</span> 📖 처음이라면? — 배당과 풍차돌리기는 뭘까? (클릭으로 접기)</div>
@@ -1704,7 +1749,7 @@ function showTab(t){
   });
   if(t==="home") homeRefresh();
   else if(t==="fut") futRefresh();
-  else if(t==="div"){ renderDivCat(); loadTrumpNews(); if(!_divInited){ _divInited=true; calcDiv(); } }
+  else if(t==="div"){ renderDivCat(); loadTrumpNews(); renderMyDivOut(); if(!_divInited){ _divInited=true; calcDiv(); initMyDiv(); } }
   else if(t==="str"){ if(!_strInited){ _strInited=true; renderStratPicker(); pickStrategy("allw"); updRot(); } }
   else if(t==="acc"){ if(!_accInited){ _accInited=true; accInit(); } renderAccLedger(); kimpRefresh(); }
   else refreshAll(true);   // 삽입 탭 진입 즉시 포트폴리오 갱신
@@ -3048,6 +3093,122 @@ async function calcDiv(){
     <span style="color:var(--muted);font-size:8.5pt">⚠️ 주가·배당이 그대로 유지된다는 가정 + 세금/수수료 미반영. 실제는 더 많거나 적을 수 있어요. 배당이 줄거나 주가가 빠지면 손실도 가능.</span>
   </div>`;
 }
+
+/* ===== 내 배당 포트폴리오 (여러 종목 합산 + 적립 DCA) ===== */
+const MDLS="pf_mydiv_v1";
+let myDiv=(()=>{ try{ const d=JSON.parse(localStorage.getItem(MDLS)); if(d&&Array.isArray(d.holdings)) return d; }catch(e){}
+  return {holdings:[], dca:{amt:62, freq:"day"}}; })();
+function mdSave(){ try{ localStorage.setItem(MDLS,JSON.stringify(myDiv)); }catch(e){} }
+function mdMonthlyDca(){
+  const a=+myDiv.dca.amt||0, f=myDiv.dca.freq;
+  return f==="day"? a*365/12 : (f==="week"? a*52/12 : a);
+}
+function saveMyDivDca(){
+  myDiv.dca.amt=+document.getElementById("mdDca").value||0;
+  myDiv.dca.freq=document.getElementById("mdFreq").value;
+  mdSave(); renderMyDivOut();
+}
+async function addMyDiv(){
+  const raw=document.getElementById("mdSym").value.trim();
+  const amt=+document.getElementById("mdAmt").value||0;
+  if(!raw){ alert("종목을 입력하세요 (예: QQQI, JEPQ, SCHD)"); return; }
+  const sym=(await resolveSymbol(raw))||raw.toUpperCase();
+  if(myDiv.holdings.some(h=>h.sym===sym)){ alert("이미 추가된 종목입니다."); return; }
+  myDiv.holdings.push({sym, amt});
+  mdSave();
+  document.getElementById("mdSym").value=""; document.getElementById("mdAmt").value="";
+  await loadMyDivData(); renderMyDivOut();
+}
+function delMyDiv(sym){ myDiv.holdings=myDiv.holdings.filter(h=>h.sym!==sym); mdSave(); renderMyDivOut(); }
+function setMyDivAmt(sym,v){ const h=myDiv.holdings.find(x=>x.sym===sym); if(h){ h.amt=+v||0; mdSave(); renderMyDivOut(); } }
+async function loadMyDivData(){
+  await Promise.all(myDiv.holdings.map(async h=>{
+    const c=divCache[h.sym];
+    if(c&&!c.fail) return;
+    try{ const d=await yDividends(h.sym);
+      divCache[h.sym]={price:d.price, annual:d.annual, yld:d.price?d.annual/d.price*100:0,
+                       freq:d.freq, cur:d.cur, name:d.name};
+    }catch(e){ divCache[h.sym]={fail:true}; }
+  }));
+}
+function renderMyDivOut(){
+  const out=document.getElementById("mdOut"); if(!out) return;
+  const dEl=document.getElementById("mdDca"), fEl=document.getElementById("mdFreq");
+  if(dEl && document.activeElement!==dEl) dEl.value=myDiv.dca.amt;
+  if(fEl) fEl.value=myDiv.dca.freq;
+  const mDca=mdMonthlyDca();
+  const mm=document.getElementById("mdDcaMonthly");
+  if(mm) mm.textContent = mDca>0? `→ 월 $${fmt(mDca,0)} · 연 $${fmt(mDca*12,0)}` : "";
+  if(!myDiv.holdings.length){
+    out.innerHTML=`<div style="color:var(--muted);font-size:9pt;padding:8px">종목을 추가하면 <b>합산 배당</b>과 <b>풍차돌리기</b>가 계산됩니다. (예: QQQI + JEPQ + SCHD 3개)</div>`;
+    return;
+  }
+  const usdkrw=fxNow.USDKRW||1450;
+  let totAmt=0, totAnn=0;
+  const rows=myDiv.holdings.map(h=>{
+    const c=divCache[h.sym]||{}, amt=+h.amt||0;
+    const yld=c.fail?0:(c.yld||0), ann=amt*yld/100;
+    totAmt+=amt; totAnn+=ann;
+    const shares=(c.price>0)? amt/c.price : null;
+    return `<tr>
+      <td>${h.sym} <span style="color:var(--muted);font-weight:400;font-size:7.5pt">${c.name?String(c.name).slice(0,20):""}</span></td>
+      <td><input type="number" value="${amt}" step="any" onchange="setMyDivAmt('${h.sym}',this.value)"
+           style="width:92px;text-align:right;font-family:inherit;font-size:8.5pt;padding:2px 4px;border:1px solid var(--grid);border-radius:3px;background:var(--cell-bg);color:var(--fg)"></td>
+      <td>${c.fail?"—":"$"+fmt(c.price,2)}</td>
+      <td>${shares!=null?fmt(shares,shares<10?2:0):"—"}</td>
+      <td>${c.fail?"—":(c.freq||"—")}</td>
+      <td>${c.fail?"—":fmt(yld,2)+"%"}</td>
+      <td>$${fmt(ann/12,2)}</td>
+      <td>$${fmt(ann,0)}</td>
+      <td style="text-align:center"><button class="mdx" onclick="delMyDiv('${h.sym}')">✕</button></td></tr>`;
+  }).join("");
+  const avgYld=totAmt>0? totAnn/totAmt*100 : 0;
+  // ── 풍차돌리기(합산): 배당 재투자 + 적립 계속 ──
+  const years=Math.max(1,Math.min(40,+((document.getElementById("mdYears")||{}).value)||10));
+  const months=years*12;
+  const st=myDiv.holdings.map(h=>{ const c=divCache[h.sym]||{};
+    return {v:+h.amt||0, r:(c.fail?0:(c.yld||0))/100/12}; });
+  const initTot=st.reduce((s,x)=>s+x.v,0);
+  const w=st.map(s=> initTot>0? s.v/initTot : 1/st.length);   // 적립 배분 = 초기 비중
+  const marks=[1,3,5,10].filter(y=>y<=years); if(!marks.includes(years)) marks.push(years);
+  const snap={};
+  for(let m=1;m<=months;m++){
+    st.forEach((s,i)=>{ s.v = s.v*(1+s.r) + mDca*w[i]; });
+    const y=m/12;
+    if(Number.isInteger(y)&&marks.includes(y)){
+      const val=st.reduce((a,b)=>a+b.v,0);
+      const mdiv=st.reduce((a,b)=>a+b.v*b.r,0);
+      snap[y]={val, mdiv, invested:initTot+mDca*m};
+    }
+  }
+  const card=(l,v,cls)=>`<div class="ocard ${cls||''}"><div class="ol">${l}</div><div class="ov">${v}</div></div>`;
+  out.innerHTML=
+    `<table class="mdtab">
+      <thead><tr><th>종목</th><th>보유금액$</th><th>현재가</th><th>주식수</th><th>주기</th><th>수익률</th><th>월배당</th><th>연배당</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>합계 ${myDiv.holdings.length}종목</td><td>$${fmt(totAmt,0)}</td><td>-</td><td>-</td><td>-</td>
+        <td>${fmt(avgYld,2)}%</td><td>$${fmt(totAnn/12,2)}</td><td>$${fmt(totAnn,0)}</td><td></td></tr></tfoot>
+    </table>`
+    +`<div class="mdsum">`
+      +card("합산 월 배당",`<span style="color:var(--up)">$${fmt(totAnn/12,0)}</span>`)
+      +card("원화 환산",`₩${fmt(totAnn/12*usdkrw,0)}`)
+      +card("합산 연 배당",`$${fmt(totAnn,0)}`)
+      +card("평균 수익률",`${fmt(avgYld,2)}%`)
+      +card("적립(월 환산)",`$${fmt(mDca,0)}`)
+    +`</div>`
+    +`<table class="mdproj">
+      <thead><tr><th>기간</th><th>누적 투입</th><th>총 자산</th><th>월 배당</th><th>연 배당</th><th>원화 월배당</th></tr></thead>
+      <tbody>${marks.map(y=>{ const s=snap[y]; if(!s) return "";
+        return `<tr><td>${y}년 후</td><td>$${fmt(s.invested,0)}</td><td>$${fmt(s.val,0)}</td>
+          <td class="big">$${fmt(s.mdiv,0)}</td><td>$${fmt(s.mdiv*12,0)}</td>
+          <td>₩${fmt(s.mdiv*usdkrw,0)}</td></tr>`; }).join("")}</tbody>
+    </table>
+    <div style="font-size:7.5pt;color:var(--muted);margin-top:6px">
+      배당 재투자 + 적립(${myDiv.dca.freq==="day"?"매일":myDiv.dca.freq==="week"?"매주":"매월"} $${fmt(myDiv.dca.amt,0)}) 계속 납입 가정 ·
+      주가·배당률 유지 가정 · 세금(미국 배당 15% 원천징수 등)·수수료 미반영 · 정보 제공용, 투자자문 아님
+    </div>`;
+}
+async function initMyDiv(){ await loadMyDivData(); renderMyDivOut(); }
 
 /* ============ 적립: 김치프리미엄 신호 · BTC 적립 ============ */
 let _accInited=false;
