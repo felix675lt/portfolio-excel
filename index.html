@@ -1111,10 +1111,12 @@
             </select></label>
           <label>다리 코인<input type="text" id="arbCoin" placeholder="XLM" list="arbCoinList" style="width:90px">
             <datalist id="arbCoinList"></datalist></label>
-          <label id="arbKrwLab">투입 원화<input type="number" id="arbKrw" placeholder="5000000" step="any" style="width:118px"></label>
-          <label id="arbUsdtLab">받은 USDT<input type="number" id="arbUsdt" placeholder="3412" step="any" style="width:100px"></label>
-          <label>기준 환율<input type="number" id="arbRate" placeholder="자동" step="any" style="width:90px" title="당시 시장 USD/KRW (비우면 현재 환율)"></label>
-          <label>프리미엄%<input type="number" id="arbPrem" placeholder="-1.7" step="any" style="width:74px" title="당시 김프(+)/역프(-) — 참고용"></label>
+          <label id="arbBuyPxLab">매수 단가(₩)<input type="number" id="arbBuyPx" placeholder="193.5" step="any" style="width:96px"></label>
+          <label>매수 갯수<input type="number" id="arbBuyQty" placeholder="25839" step="any" style="width:96px"></label>
+          <label>매도 갯수<input type="number" id="arbSellQty" placeholder="25830" step="any" style="width:96px" title="전송 수수료 빠진 실제 매도 수량"></label>
+          <label id="arbSellPxLab">매도 단가($)<input type="number" id="arbSellPx" placeholder="0.1321" step="any" style="width:96px"></label>
+          <label>기준 환율<input type="number" id="arbRate" placeholder="자동" step="any" style="width:84px" title="당시 시장 USD/KRW (비우면 현재 환율)"></label>
+          <label>프리미엄%<input type="number" id="arbPrem" placeholder="-1.7" step="any" style="width:70px" title="당시 김프(+)/역프(-) — 참고용"></label>
           <button class="btn" onclick="addArb()">＋ 기록</button>
         </div>
         <table class="accgrid" id="arbTab"></table>
@@ -3891,25 +3893,26 @@ let arbLog=JSON.parse(localStorage.getItem(ARBLS)||"[]");
 function arbSave(){ localStorage.setItem(ARBLS,JSON.stringify(arbLog)); }
 function arbDirHint(){
   const out=document.getElementById("arbDir").value==="out";
-  const kl=document.getElementById("arbKrwLab"), ul=document.getElementById("arbUsdtLab");
-  if(kl) kl.childNodes[0].nodeValue = out? "투입 원화" : "받은 원화";
-  if(ul) ul.childNodes[0].nodeValue = out? "받은 USDT" : "투입 USDT";
+  const b=document.getElementById("arbBuyPxLab"), s=document.getElementById("arbSellPxLab");
+  if(b) b.childNodes[0].nodeValue = out? "매수 단가(₩)" : "매수 단가($)";
+  if(s) s.childNodes[0].nodeValue = out? "매도 단가($)" : "매도 단가(₩)";
 }
 function addArb(){
   const date=document.getElementById("arbDate").value||new Date().toISOString().slice(0,10);
   const dir=document.getElementById("arbDir").value;
   const coin=(document.getElementById("arbCoin").value||"").trim().toUpperCase()||"—";
-  const krw=+document.getElementById("arbKrw").value||0;
-  const usdt=+document.getElementById("arbUsdt").value||0;
+  const buyPx=+document.getElementById("arbBuyPx").value||0;
+  const buyQty=+document.getElementById("arbBuyQty").value||0;
+  const sellQty=+document.getElementById("arbSellQty").value||buyQty;
+  const sellPx=+document.getElementById("arbSellPx").value||0;
   const rate=+document.getElementById("arbRate").value|| fxNow.USDKRW ||0;
   const prem=document.getElementById("arbPrem").value===""? null : +document.getElementById("arbPrem").value;
-  if(krw<=0||usdt<=0){ alert("원화와 USDT 금액을 모두 입력하세요."); return; }
+  if(buyPx<=0||buyQty<=0||sellPx<=0){ alert("매수 단가·갯수와 매도 단가를 입력하세요."); return; }
   if(!(rate>0)){ alert("기준 환율을 못 구했습니다. 직접 입력해 주세요."); return; }
-  arbLog.push({id:Date.now()+Math.random(), date, dir, coin, krw, usdt, rate, prem});
+  arbLog.push({id:Date.now()+Math.random(), date, dir, coin, buyPx, buyQty, sellQty, sellPx, rate, prem});
   arbLog.sort((a,b)=>a.date.localeCompare(b.date));
   arbSave();
-  document.getElementById("arbKrw").value=document.getElementById("arbUsdt").value="";
-  document.getElementById("arbPrem").value="";
+  ["arbBuyPx","arbBuyQty","arbSellQty","arbSellPx","arbPrem"].forEach(id=>{document.getElementById(id).value="";});
   renderArb();
 }
 function delArb(id){ arbLog=arbLog.filter(a=>a.id!=id); arbSave(); renderArb(); }
@@ -3917,10 +3920,19 @@ function _arbFind(id){ return arbLog.find(a=>String(a.id)===String(id)); }
 function setArbF(id,f,v){ const a=_arbFind(id); if(!a) return;
   a[f]= (f==="date"||f==="coin"||f==="dir")? v : Math.max(0,+v||0);
   arbSave(); renderArb(); }
+/* 단가×갯수 → 원화/USDT 금액 (구버전 기록은 krw/usdt 그대로 사용) */
+function arbAmts(a){
+  if(a.buyPx!=null){
+    const buyTot=a.buyPx*a.buyQty, sellTot=(a.sellQty||a.buyQty)*a.sellPx;
+    return a.dir==="out"? {krw:buyTot, usdt:sellTot} : {usdt:buyTot, krw:sellTot};
+  }
+  return {krw:a.krw||0, usdt:a.usdt||0};
+}
 /* 한 건의 차익: 아웃=USDT가치−투입원화, 인=회수원화−USDT가치 */
 function arbGain(a){
-  const val=a.usdt*(a.rate||0);
-  return a.dir==="out"? (val - a.krw) : (a.krw - val);
+  const {krw,usdt}=arbAmts(a);
+  const val=usdt*(a.rate||0);
+  return a.dir==="out"? (val - krw) : (krw - val);
 }
 function renderArb(){
   const tb=document.getElementById("arbTab"); if(!tb) return;
@@ -3930,45 +3942,53 @@ function renderArb(){
     dl.innerHTML=scanData.slice(0,20).map(x=>`<option>${x.coin}</option>`).join("");
   let totGain=0, usdtBal=0, wins=0;
   arbLog.forEach(a=>{ const g=arbGain(a); totGain+=g; if(g>0) wins++;
-    usdtBal += (a.dir==="out"? a.usdt : -a.usdt); });
+    const {usdt}=arbAmts(a);
+    usdtBal += (a.dir==="out"? usdt : -usdt); });
   const sum=document.getElementById("arbSummary");
   if(sum) sum.innerHTML = arbLog.length
     ? `— ${arbLog.length}건 · 누적 차익 <b style="color:${totGain>=0?'var(--up)':'var(--down)'}">${totGain>=0?"+":""}₩${fmt(totGain,0)}</b> · USDT 잔고 <b>$${fmt(usdtBal,2)}</b> · 성공 ${wins}/${arbLog.length}`
     : `— 역프에 나가고 김프에 들어온 기록을 남기면 누적 차익과 USDT 잔고가 계산됩니다`;
   if(!arbLog.length){
     tb.innerHTML=`<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:12px">
-      기록 없음. 예) 역프 −1.7%에 ₩5,000,000으로 XLM 매수 → 바이낸스 전송 → USDT 전환 후 받은 USDT 입력</td></tr>`;
+      기록 없음. 거래소 화면 숫자 그대로 넣으세요 — 예) XLM 매수 ₩193.5 × 25,839개 → 바이낸스서 25,830개 × $0.1321 매도</td></tr>`;
     return;
   }
   const rows=arbLog.map(a=>{
-    const g=arbGain(a);
-    const eff=a.usdt>0? a.krw/a.usdt : 0;             // 실효 환율(원/USDT)
-    const base=a.dir==="out"? a.krw : a.usdt*(a.rate||0);
+    const g=arbGain(a), {krw,usdt}=arbAmts(a);
+    const eff=usdt>0? krw/usdt : 0;                   // 실효 환율(원/USDT)
+    const base=a.dir==="out"? krw : usdt*(a.rate||0);
     const gpct=base>0? g/base*100 : 0;
-    const dirTxt=a.dir==="out"? "역프▶out" : "김프◀in";
+    const out=a.dir==="out";
+    const bSym=out?"₩":"$", sSym=out?"$":"₩";
+    const feeQty=(a.buyQty!=null&&a.sellQty!=null)? a.buyQty-a.sellQty : null;
+    const px=(v,s)=>s==="₩"? "₩"+fmt(v,v<10?2:0) : "$"+fmt(v,v<1?4:2);
+    // 구버전(단가 없는) 기록은 금액만 표시
+    const legacy=a.buyPx==null;
     return `<tr>
-      <td><input class="rin wide" type="date" value="${a.date}" onchange="setArbF('${a.id}','date',this.value)" style="width:116px"></td>
+      <td><input class="rin" type="date" value="${a.date}" onchange="setArbF('${a.id}','date',this.value)" style="width:112px"></td>
       <td><select class="rsel" onchange="setArbF('${a.id}','dir',this.value)">
-        <option value="out" ${a.dir==="out"?"selected":""}>역프▶out</option>
-        <option value="in" ${a.dir==="in"?"selected":""}>김프◀in</option></select></td>
-      <td><input class="rin" type="text" value="${a.coin}" onchange="setArbF('${a.id}','coin',this.value.toUpperCase())" style="width:56px;text-align:center"></td>
-      <td><input class="rin wide" type="number" step="any" value="${a.krw}" onchange="setArbF('${a.id}','krw',this.value)"></td>
-      <td><input class="rin" type="number" step="any" value="${a.usdt}" onchange="setArbF('${a.id}','usdt',this.value)"></td>
+        <option value="out" ${out?"selected":""}>역프▶out</option>
+        <option value="in" ${!out?"selected":""}>김프◀in</option></select></td>
+      <td><input class="rin" type="text" value="${a.coin}" onchange="setArbF('${a.id}','coin',this.value.toUpperCase())" style="width:52px;text-align:center"></td>
+      <td>${legacy?"—":`${bSym}<input class="rin" type="number" step="any" value="${a.buyPx}" onchange="setArbF('${a.id}','buyPx',this.value)" style="width:76px">
+        <span class="won2">× <input class="rin" type="number" step="any" value="${a.buyQty}" onchange="setArbF('${a.id}','buyQty',this.value)" style="width:76px">개</span>`}</td>
+      <td>${legacy?"—":`<span class="won2"><input class="rin" type="number" step="any" value="${a.sellQty}" onchange="setArbF('${a.id}','sellQty',this.value)" style="width:76px">개 ×</span>
+        ${sSym}<input class="rin" type="number" step="any" value="${a.sellPx}" onchange="setArbF('${a.id}','sellPx',this.value)" style="width:76px">`}</td>
+      <td>${feeQty!=null&&feeQty>0?`<span class="won2">${fmt(feeQty,feeQty<1?4:2)}개</span>`:"—"}</td>
+      <td>₩${fmt(krw,0)}<span class="natpx">$${fmt(usdt,2)}</span></td>
       <td>₩${fmt(eff,2)}</td>
-      <td><input class="rin" type="number" step="any" value="${a.rate}" onchange="setArbF('${a.id}','rate',this.value)" style="width:78px"></td>
-      <td>${a.prem==null?"—":(a.prem>=0?"+":"")+fmt(a.prem,2)+"%"}</td>
-      <td style="color:${g>=0?'var(--up)':'var(--down)'};font-weight:700">${g>=0?"+":""}₩${fmt(g,0)}</td>
-      <td style="color:${g>=0?'var(--up)':'var(--down)'}">${g>=0?"+":""}${fmt(gpct,2)}%
+      <td><input class="rin" type="number" step="any" value="${a.rate}" onchange="setArbF('${a.id}','rate',this.value)" style="width:72px"></td>
+      <td style="color:${g>=0?'var(--up)':'var(--down)'};font-weight:700">${g>=0?"+":""}₩${fmt(g,0)}
+        <span class="natpx" style="color:${g>=0?'var(--up)':'var(--down)'}">${g>=0?"+":""}${fmt(gpct,2)}%</span>
         <button class="delx" onclick="delArb('${a.id}')" title="삭제">✕</button></td></tr>`;
   }).join("");
   tb.innerHTML=
-    `<thead><tr><th>날짜</th><th>방향</th><th>코인</th><th>원화</th><th>USDT</th><th>실효환율</th><th>기준환율</th><th>프리미엄</th><th>차익(원)</th><th>차익%</th></tr></thead>`
+    `<thead><tr><th>날짜</th><th>방향</th><th>코인</th><th>매수 (단가×갯수)</th><th>매도 (갯수×단가)</th><th>전송수수료</th><th>투입/회수</th><th>실효환율</th><th>기준환율</th><th>차익</th></tr></thead>`
     +`<tbody>${rows}</tbody>`
-    +`<tfoot><tr><td colspan="3">합계 ${arbLog.length}건</td>
-        <td colspan="2">USDT 잔고 <b>$${fmt(usdtBal,2)}</b></td>
-        <td colspan="3">잔고 원화가치 ${fxNow.USDKRW?("₩"+fmt(usdtBal*fxNow.USDKRW,0)):"—"}</td>
-        <td style="color:${totGain>=0?'var(--up)':'var(--down)'}">${totGain>=0?"+":""}₩${fmt(totGain,0)}</td>
-        <td>성공 ${wins}/${arbLog.length}</td></tr></tfoot>`;
+    +`<tfoot><tr><td colspan="3">합계 ${arbLog.length}건 · 성공 ${wins}/${arbLog.length}</td>
+        <td colspan="3">USDT 잔고 <b>$${fmt(usdtBal,2)}</b> ${fxNow.USDKRW?`<span class="won2">(₩${fmt(usdtBal*fxNow.USDKRW,0)})</span>`:""}</td>
+        <td colspan="3">누적 차익</td>
+        <td style="color:${totGain>=0?'var(--up)':'var(--down)'}">${totGain>=0?"+":""}₩${fmt(totGain,0)}</td></tr></tfoot>`;
 }
 
 render();
