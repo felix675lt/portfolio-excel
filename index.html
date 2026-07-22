@@ -731,7 +731,7 @@
     <div class="resbody">
       <div class="resinput">
         <input type="date" id="fxDate" style="width:130px" title="환전한 날짜">
-        <select id="fxCur"><option>USD</option><option>HKD</option><option>JPY</option><option>EUR</option></select>
+        <select id="fxCur"><option>USD</option><option>USDT</option><option>USDC</option><option>HKD</option><option>JPY</option><option>EUR</option><option>KRW</option></select>
         <input type="number" id="fxKrw" placeholder="환전한 원화" step="any">
         <input type="number" id="fxAmt" placeholder="받은 외화" step="any">
         <button class="btn" onclick="addFx()">＋ 환전 기록</button>
@@ -1409,6 +1409,14 @@ async function fetchRates(){
     try{ const uh=(await yQuote("HKD=X")).price;
       if(uh>0&&fxNow.USDKRW) fxNow.HKDKRW=fxNow.USDKRW/uh; }catch(e2){}
   }
+  // 스테이블코인 국내 시세(USDT/USDC) — 달러환율과 달라서(김프분) 업비트 실시세 사용
+  try{
+    const r=await fetch("https://api.upbit.com/v1/ticker?markets=KRW-USDT,KRW-USDC",{cache:"no-store"});
+    if(r.ok){ (await r.json()).forEach(x=>{
+      if(x.market==="KRW-USDT") fxNow.USDTKRW=x.trade_price;
+      if(x.market==="KRW-USDC") fxNow.USDCKRW=x.trade_price;
+    }); }
+  }catch(e){}
   const st=document.getElementById("st-rate");
   if(fxNow.USDKRW) st.textContent =
     `USD/KRW ${fmt(fxNow.USDKRW,2)} · JPY/KRW ${fmt(fxNow.JPYKRW,2)} · BTC $${fmt(fxNow.BTCUSD,0)}`;
@@ -1449,7 +1457,9 @@ async function refreshAll(silent){
 function toKRW(v,cur,fx){
   if(v==null) return null;
   if(cur==="KRW") return v;
-  if(cur==="USD"||cur==="USDT") return fx.USDKRW? v*fx.USDKRW : null;
+  if(cur==="USD") return fx.USDKRW? v*fx.USDKRW : null;
+  if(cur==="USDT") return (fx.USDTKRW||fx.USDKRW)? v*(fx.USDTKRW||fx.USDKRW) : null;
+  if(cur==="USDC") return (fx.USDCKRW||fx.USDTKRW||fx.USDKRW)? v*(fx.USDCKRW||fx.USDTKRW||fx.USDKRW) : null;
   if(cur==="EUR") return fx.EURKRW? v*fx.EURKRW : null;
   if(cur==="JPY") return fx.JPYKRW? v*fx.JPYKRW : null;
   if(cur==="HKD") return fx.HKDKRW? v*fx.HKDKRW : (fx.USDKRW? v*fx.USDKRW/7.8 : null); // 홍콩달러
@@ -1648,7 +1658,7 @@ function renderReserves(){
       if(!met) distCls=Math.abs(needPct)<=2?"near":"wait";
       statusTxt=met?"체결조건 충족":(r.cond==="le"?"하락 대기":"상승 대기");
     }
-    const curOpts=["KRW","USD","HKD","JPY","EUR"].map(c=>`<option ${r.native===c?"selected":""}>${c}</option>`).join("");
+    const curOpts=["KRW","USD","USDT","USDC","HKD","JPY","EUR"].map(c=>`<option ${r.native===c?"selected":""}>${c}</option>`).join("");
     return `<tr class="${_resFilledFlash===r.sym?'filled':''}">
       <td>${nm} <span style="color:var(--muted);font-size:7pt">${r.sym}</span></td>
       <td><input class="rin" type="number" step="any" value="${r.qty}" onchange="setResQty('${r.id}',this.value)"></td>
@@ -1695,9 +1705,16 @@ function nativeTag(cur,px){
 /* ============ 환전 관리 (환차손익 · 남은 외화) ============ */
 const FXLS="pf_fxlog_v1";
 let fxLog=JSON.parse(localStorage.getItem(FXLS)||"[]");
-const CUR_SYM={USD:"$",HKD:"HK$",JPY:"¥",EUR:"€"};
+const CUR_SYM={KRW:"₩",USD:"$",USDT:"₮",USDC:"Ⓤ",HKD:"HK$",JPY:"¥",EUR:"€"};
+const FX_CURS=["USD","USDT","USDC","HKD","JPY","EUR","KRW"];
 function fxSave(){ localStorage.setItem(FXLS,JSON.stringify(fxLog)); }
-function curRate(cur){ return fxNow[cur+"KRW"]||null; }   // 1외화 = ?원
+/* 1외화 = ?원 (KRW=1, 스테이블코인은 업비트 국내 시세 우선) */
+function curRate(cur){
+  if(cur==="KRW") return 1;
+  if(cur==="USDT") return fxNow.USDTKRW||fxNow.USDKRW||null;
+  if(cur==="USDC") return fxNow.USDCKRW||fxNow.USDTKRW||fxNow.USDKRW||null;
+  return fxNow[cur+"KRW"]||null;
+}
 function toggleFx(){
   const p=document.getElementById("fxPanel");
   const on=p.classList.toggle("collapsed");
@@ -1756,7 +1773,7 @@ function renderFx(){
     const dp=f.cur==="JPY"?2:2;
     return `<tr>
       <td><input class="rin wide" type="date" value="${f.date}" onchange="setFxDate('${f.id}',this.value)" style="width:118px"></td>
-      <td><select class="rsel" onchange="setFxCur('${f.id}',this.value)">${["USD","HKD","JPY","EUR"].map(c=>`<option ${f.cur===c?"selected":""}>${c}</option>`).join("")}</select></td>
+      <td><select class="rsel" onchange="setFxCur('${f.id}',this.value)">${FX_CURS.map(c=>`<option ${f.cur===c?"selected":""}>${c}</option>`).join("")}</select></td>
       <td><input class="rin wide" type="number" step="any" value="${f.krw}" onchange="setFxKrw('${f.id}',this.value)"></td>
       <td><input class="rin" type="number" step="any" value="${f.amt}" onchange="setFxAmt('${f.id}',this.value)"></td>
       <td><b>₩${fmt(rate,dp)}</b></td>
