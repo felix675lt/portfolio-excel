@@ -76,6 +76,9 @@
     text-overflow:ellipsis;flex:1;font-size:8.5pt}
   /* ===== Grid ===== */
   .sheetwrap{overflow:auto;height:calc(100vh - 30px - 26px - 84px - 24px - 22px)}
+  /* 삽입 탭: 패널(예약매수·환전)을 펼쳐도 페이지 전체가 스크롤되게 */
+  #view-insert.on{display:block;height:calc(100vh - 30px - 26px);overflow:auto}
+  #view-insert .sheetwrap{overflow:visible;height:auto;min-height:0}
   table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
   th,td{border:1px solid var(--grid);padding:4px 8px;white-space:nowrap;font-size:10pt}
   thead th{background:var(--hdr-bg);color:var(--hdr-fg);font-weight:600;position:sticky;top:18px;z-index:3;
@@ -250,8 +253,9 @@
   .scen .safe{background:#d8f0dd;color:#1a7a32}.scen .dead{background:#f6d4d4;color:#b00}
   body.dark .scen .safe{background:#1f3a26;color:#7ad48f}
   body.dark .scen .dead{background:#3a2020;color:#ff8a8a}
-  #view-fut.on{display:flex;flex-direction:column;height:calc(100vh - 30px - 26px)}
+  #view-fut.on{display:block;height:calc(100vh - 30px - 26px);overflow:auto}
   .futwrap{overflow:auto;flex:1;min-height:90px}
+  #view-fut .futwrap{overflow:visible;flex:none;height:auto;min-height:0}
   /* 청산 방어 시뮬레이터 */
   .futdef{margin-top:9px;border-top:2px solid var(--ribbon);padding-top:7px}
   .fdhead{font-size:9.5pt;font-weight:700;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
@@ -1855,7 +1859,7 @@ function render(){
       상단 리본에서 종목을 추가하세요. (예: 삼성전자 <b>005930.KS</b>, 카카오 <b>035720.KS</b>, 애플 <b>AAPL</b>)<br>
       또는 <b>샘플 불러오기</b>로 미리보기</td></tr>`;
     statTotals(0,0,base,fx);
-    fillGrid(tb, COLS.length, document.querySelector(".sheetwrap")); return;
+    fillGrid(tb, COLS.length, document.getElementById("view-insert")); return;
   }
 
   // 종목별 그룹
@@ -1937,7 +1941,7 @@ function render(){
     totCostKRW+=sumCostKRW; totValKRW+=sumValKRW;
   }
   statTotals(totCostKRW,totValKRW,base,fx);
-  fillGrid(tb, COLS.length, document.querySelector(".sheetwrap"));
+  fillGrid(tb, COLS.length, document.getElementById("view-insert"));
   if(typeof renderResGoal==="function") renderResGoal();  // 매입 진행률 갱신
 }
 function statTotals(cost,val,base,fx){
@@ -2345,7 +2349,7 @@ function renderFut(){
   let totM=0,totN=0,totP=0;
   if(!futPos.length){
     tb.innerHTML=`<tr><td class="rownum">1</td><td colspan="${FCOLS.length-1}" class="empty">위 계산기에서 포지션을 산출한 뒤 <b>＋ 포트폴리오에 추가</b>를 누르면 여기에 누적됩니다.</td></tr>`;
-    fillGrid(tb,FCOLS.length,document.querySelector(".futwrap"));
+    fillGrid(tb,FCOLS.length,document.getElementById("view-fut"));
     futStat(0,0,0); return;
   }
   const groups={};
@@ -2419,7 +2423,7 @@ function renderFut(){
   }
   futStat(totM,totN,totP);
   renderCrossBar(dgAll);
-  fillGrid(tb,FCOLS.length,document.querySelector(".futwrap"));
+  fillGrid(tb,FCOLS.length,document.getElementById("view-fut"));
   fillDefSelect();
   if(!document.getElementById("defNow")) calcDef(); else defUpdate();
 }
