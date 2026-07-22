@@ -1409,14 +1409,7 @@ async function fetchRates(){
     try{ const uh=(await yQuote("HKD=X")).price;
       if(uh>0&&fxNow.USDKRW) fxNow.HKDKRW=fxNow.USDKRW/uh; }catch(e2){}
   }
-  // 스테이블코인 국내 시세(USDT/USDC) — 달러환율과 달라서(김프분) 업비트 실시세 사용
-  try{
-    const r=await fetch("https://api.upbit.com/v1/ticker?markets=KRW-USDT,KRW-USDC",{cache:"no-store"});
-    if(r.ok){ (await r.json()).forEach(x=>{
-      if(x.market==="KRW-USDT") fxNow.USDTKRW=x.trade_price;
-      if(x.market==="KRW-USDC") fxNow.USDCKRW=x.trade_price;
-    }); }
-  }catch(e){}
+  // USDT·USDC는 해외 기준 $1로 보고 달러환율(USDKRW) 적용 — 별도 국내시세 조회 안 함
   const st=document.getElementById("st-rate");
   if(fxNow.USDKRW) st.textContent =
     `USD/KRW ${fmt(fxNow.USDKRW,2)} · JPY/KRW ${fmt(fxNow.JPYKRW,2)} · BTC $${fmt(fxNow.BTCUSD,0)}`;
@@ -1457,9 +1450,7 @@ async function refreshAll(silent){
 function toKRW(v,cur,fx){
   if(v==null) return null;
   if(cur==="KRW") return v;
-  if(cur==="USD") return fx.USDKRW? v*fx.USDKRW : null;
-  if(cur==="USDT") return (fx.USDTKRW||fx.USDKRW)? v*(fx.USDTKRW||fx.USDKRW) : null;
-  if(cur==="USDC") return (fx.USDCKRW||fx.USDTKRW||fx.USDKRW)? v*(fx.USDCKRW||fx.USDTKRW||fx.USDKRW) : null;
+  if(cur==="USD"||cur==="USDT"||cur==="USDC") return fx.USDKRW? v*fx.USDKRW : null;
   if(cur==="EUR") return fx.EURKRW? v*fx.EURKRW : null;
   if(cur==="JPY") return fx.JPYKRW? v*fx.JPYKRW : null;
   if(cur==="HKD") return fx.HKDKRW? v*fx.HKDKRW : (fx.USDKRW? v*fx.USDKRW/7.8 : null); // 홍콩달러
@@ -1708,11 +1699,10 @@ let fxLog=JSON.parse(localStorage.getItem(FXLS)||"[]");
 const CUR_SYM={KRW:"₩",USD:"$",USDT:"₮",USDC:"Ⓤ",HKD:"HK$",JPY:"¥",EUR:"€"};
 const FX_CURS=["USD","USDT","USDC","HKD","JPY","EUR","KRW"];
 function fxSave(){ localStorage.setItem(FXLS,JSON.stringify(fxLog)); }
-/* 1외화 = ?원 (KRW=1, 스테이블코인은 업비트 국내 시세 우선) */
+/* 1외화 = ?원 (KRW=1, 테더·USDC는 해외 기준 $1 → 달러환율 적용) */
 function curRate(cur){
   if(cur==="KRW") return 1;
-  if(cur==="USDT") return fxNow.USDTKRW||fxNow.USDKRW||null;
-  if(cur==="USDC") return fxNow.USDCKRW||fxNow.USDTKRW||fxNow.USDKRW||null;
+  if(cur==="USDT"||cur==="USDC") return fxNow.USDKRW||null;
   return fxNow[cur+"KRW"]||null;
 }
 function toggleFx(){
